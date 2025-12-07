@@ -32,6 +32,10 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      ################################
+      # Node + pnpm (run in frontend)
+      ################################
+
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
 
@@ -41,16 +45,23 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Build Frontend
-        run: |
-          cd frontend
-          pnpm install
-          pnpm build
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+
+      ################################
 
       - name: Build Docker Image
+        working-directory: backend
         run: |
-          cd backend
-          gcloud builds submit --tag gcr.io/$PROJECT_ID/spring-vite-app .
+          gcloud builds submit \
+            --tag gcr.io/$PROJECT_ID/spring-vite-app .
+
+      ################################
 
       - name: Deploy to Cloud Run
         shell: bash
