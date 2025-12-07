@@ -11,6 +11,7 @@ COPY backend/pom.xml .
 RUN mvn dependency:go-offline
 
 COPY backend .
+COPY --from=frontend /app/frontend/dist /app/src/main/resources/static
 RUN mvn package -DskipTests
 
 FROM eclipse-temurin:21-jre
