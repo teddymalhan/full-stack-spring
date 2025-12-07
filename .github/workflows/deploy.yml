@@ -39,6 +39,7 @@ jobs:
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
         with:
+          version: 10.17.1
           package_json_file: frontend/package.json
 
       - name: Setup Node
