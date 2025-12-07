@@ -1,10 +1,32 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react";
+import reactLogo from "./assets/react.svg";
+import viteLogo from "/vite.svg";
+import "./App.css";
+import {
+  SignInButton,
+  UserButton,
+  SignedIn,
+  SignedOut,
+  useAuth,
+} from "@clerk/clerk-react";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [count, setCount] = useState(0);
+  const { getToken } = useAuth();
+  const [msg, setMsg] = useState("");
+
+  const callBackend = async () => {
+    const token = await getToken();
+
+    const res = await fetch("/api/protected/hello", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const text = await res.text();
+    setMsg(text);
+  };
 
   return (
     <>
@@ -28,8 +50,18 @@ function App() {
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>
+      <SignedOut>
+        <SignInButton />
+      </SignedOut>
+
+      <SignedIn>
+        <UserButton />
+      </SignedIn>
+
+      <button onClick={callBackend}>Call Protected API</button>
+      <p>{msg}</p>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
