@@ -1,5 +1,7 @@
 FROM node:20 AS frontend
 WORKDIR /app/frontend
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN corepack enable && pnpm install
 COPY frontend .
