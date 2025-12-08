@@ -18,7 +18,7 @@ steps:
       - -t
       - us-west1-docker.pkg.dev/$PROJECT_ID/cloudrun/$_SERVICE_NAME:$SHORT_SHA
       - --build-arg
-      - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+      - VITE_CLERK_PUBLISHABLE_KEY=$$VITE_CLERK_PUBLISHABLE_KEY
       - .
 
   - name: "gcr.io/cloud-builders/docker"
