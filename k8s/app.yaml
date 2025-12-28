@@ -24,8 +24,33 @@ spec:
             - name: VITE_CLERK_PUBLISHABLE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: clerk-secrets
+                  name: app-secrets
                   key: VITE_CLERK_PUBLISHABLE_KEY
+            - name: CLERK_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: CLERK_WEBHOOK_SECRET
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SUPABASE_URL
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SUPABASE_ANON_KEY
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SUPABASE_SERVICE_ROLE_KEY
+            - name: SUPABASE_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SUPABASE_DB_URL
           ports:
             - containerPort: 8080
 ---
@@ -48,6 +73,5 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: clerk-secrets
+  name: app-secrets
 stringData:
-  VITE_CLERK_PUBLISHABLE_KEY: "pk_test"

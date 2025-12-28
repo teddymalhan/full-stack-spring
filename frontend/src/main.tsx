@@ -3,12 +3,18 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { initializeSupabase } from "./supabaseClient";
 
-type Config = { clerkPublishableKey: string };
+type Config = {
+  clerkPublishableKey: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+};
 
 function ConfiguredApp() {
   const [config, setConfig] = useState<Config | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [supabaseReady, setSupabaseReady] = useState(false);
 
   useEffect(() => {
     fetch("/config")
@@ -18,7 +24,20 @@ function ConfiguredApp() {
         }
         return res.json();
       })
-      .then((cfg: Config) => setConfig(cfg))
+      .then(async (cfg: Config) => {
+        setConfig(cfg);
+        // Initialize Supabase after fetching config
+        if (cfg.supabaseUrl && cfg.supabaseAnonKey) {
+          try {
+            await initializeSupabase();
+            setSupabaseReady(true);
+          } catch (err) {
+            console.error("Failed to initialize Supabase:", err);
+          }
+        } else {
+          setSupabaseReady(true); // Continue without Supabase
+        }
+      })
       .catch((err) => setError(err.message));
   }, []);
 
@@ -26,7 +45,7 @@ function ConfiguredApp() {
     return <div>Failed to load config: {error}</div>;
   }
 
-  if (!config?.clerkPublishableKey) {
+  if (!config?.clerkPublishableKey || !supabaseReady) {
     return null;
   }
 

@@ -16,6 +16,8 @@ public class SecurityConfig {
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         return http
+            .csrf(csrf -> csrf.disable())  // TODO: Enable CSRF in production with proper token handling
+            .cors(Customizer.withDefaults())  // Enable CORS for frontend
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/protected/**").authenticated()
                 .anyRequest().permitAll()
