@@ -8,16 +8,6 @@ availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/CLERK_PUBLISHABLE_KEY/versions/latest
       env: VITE_CLERK_PUBLISHABLE_KEY
-    - versionName: projects/$PROJECT_ID/secrets/CLERK_WEBHOOK_SECRET/versions/latest
-      env: CLERK_WEBHOOK_SECRET
-    - versionName: projects/$PROJECT_ID/secrets/SUPABASE_URL/versions/latest
-      env: SUPABASE_URL
-    - versionName: projects/$PROJECT_ID/secrets/SUPABASE_ANON_KEY/versions/latest
-      env: SUPABASE_ANON_KEY
-    - versionName: projects/$PROJECT_ID/secrets/SUPABASE_SERVICE_ROLE_KEY/versions/latest
-      env: SUPABASE_SERVICE_ROLE_KEY
-    - versionName: projects/$PROJECT_ID/secrets/SUPABASE_DB_URL/versions/latest
-      env: SUPABASE_DB_URL
 
 steps:
   - name: "gcr.io/cloud-builders/docker"
