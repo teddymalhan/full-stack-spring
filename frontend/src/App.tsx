@@ -1,66 +1,35 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
+import LandingPage from "./LandingPage";
+import Dashboard from "./Dashboard";
 import "./App.css";
-import {
-  SignInButton,
-  UserButton,
-  SignedIn,
-  SignedOut,
-  useAuth,
-} from "@clerk/clerk-react";
 
-function App() {
-  const [count, setCount] = useState(0);
-  const { getToken } = useAuth();
-  const [msg, setMsg] = useState("");
-
-  const callBackend = async () => {
-    const token = await getToken();
-
-    const res = await fetch("/api/protected/hello", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    const text = await res.text();
-    setMsg(text);
-  };
-
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <SignedIn>{children}</SignedIn>
       <SignedOut>
-        <SignInButton />
+        <Navigate to="/" replace />
       </SignedOut>
-
-      <SignedIn>
-        <UserButton />
-      </SignedIn>
-
-      <button onClick={callBackend}>Call Protected API</button>
-      <p>{msg}</p>
     </>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

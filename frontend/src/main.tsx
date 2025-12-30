@@ -1,9 +1,12 @@
 import { ClerkProvider } from "@clerk/clerk-react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 import { initializeSupabase } from "./supabaseClient";
+
+const queryClient = new QueryClient();
 
 type Config = {
   clerkPublishableKey: string;
@@ -50,9 +53,11 @@ function ConfiguredApp() {
   }
 
   return (
-    <ClerkProvider publishableKey={config.clerkPublishableKey}>
-      <App />
-    </ClerkProvider>
+    <QueryClientProvider client={queryClient}>
+      <ClerkProvider publishableKey={config.clerkPublishableKey}>
+        <App />
+      </ClerkProvider>
+    </QueryClientProvider>
   );
 }
 
