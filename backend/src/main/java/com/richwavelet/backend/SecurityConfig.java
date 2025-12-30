@@ -20,6 +20,8 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())  // Enable CORS for frontend
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/protected/**").authenticated()
+                .requestMatchers("/api/tasks/**").permitAll()  // OIDC verified in controller
+                .requestMatchers("/api/webhooks/**").permitAll()  // Signature verified in controller
                 .anyRequest().permitAll()
             )
             .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))

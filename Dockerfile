@@ -19,6 +19,11 @@ RUN mvn package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# Install FFmpeg for video processing
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=backend-build /app/target/*.jar app.jar
 
 EXPOSE 8080

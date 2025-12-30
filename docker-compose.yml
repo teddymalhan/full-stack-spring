@@ -17,6 +17,18 @@ services:
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
       - SUPABASE_DB_URL=${SUPABASE_DB_URL:-}
+      # Google Cloud Platform Configuration
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - GCP_LOCATION=${GCP_LOCATION:-us-central1}
+      - GCP_TASK_QUEUE=${GCP_TASK_QUEUE:-retro-video-processing}
+      - GCP_WORKER_BASE_URL=${GCP_WORKER_BASE_URL:-}
+      - GCP_SERVICE_ACCOUNT=${GCP_SERVICE_ACCOUNT:-}
+      # Gemini API Configuration
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      # Video Processing Configuration
+      - VIDEO_TEMP_DIR=${VIDEO_TEMP_DIR:-/tmp/video-processing}
+      - VIDEO_MAX_UPLOAD_SIZE_MB=${VIDEO_MAX_UPLOAD_SIZE_MB:-500}
     restart: unless-stopped
 
 
