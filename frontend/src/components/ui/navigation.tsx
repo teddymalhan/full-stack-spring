@@ -3,7 +3,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
-import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -114,7 +113,7 @@ export function Navigation() {
               </div>
             </div>
 
-            {/* Right side - Auth and Theme Toggle */}
+            {/* Right side - Auth */}
             <div className="flex items-center gap-3">
               <SignedOut>
                 <SignInButton mode="modal">
@@ -129,7 +128,6 @@ export function Navigation() {
               <SignedIn>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
-              <AnimatedThemeToggler className="w-9 h-9 rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center transition-colors duration-200" />
             </div>
           </div>
         </div>
@@ -158,7 +156,6 @@ export function Navigation() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <AnimatedThemeToggler className="w-9 h-9 rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center transition-colors duration-200" />
             <button
               onClick={toggleMobileMenu}
               className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-accent/50 transition-colors duration-200"

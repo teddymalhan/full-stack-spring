@@ -56,7 +56,7 @@ function ConfiguredApp() {
   return (
     <QueryClientProvider client={queryClient}>
       <ClerkProvider publishableKey={config.clerkPublishableKey}>
-        <ThemeProvider defaultTheme="system" storageKey="app-theme">
+        <ThemeProvider defaultTheme="dark" storageKey="app-theme">
           <App />
         </ThemeProvider>
       </ClerkProvider>
