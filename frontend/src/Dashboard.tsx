@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import { Navigation } from "@/components/ui/navigation";
+import { CRTModelViewer } from "@/components/CRTModelViewer";
 import "./Dashboard.css";
 
 function Dashboard() {
@@ -77,6 +78,14 @@ function Dashboard() {
                   {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
                 </span>
               </div>
+            </div>
+          </section>
+
+          <section className="dashboard-card">
+            <h2>Your Virtual CRT TV</h2>
+            <p className="mb-4">Experience RetroWatch on an authentic Sony Trinitron CRT. Drag to rotate, scroll to zoom.</p>
+            <div className="w-full h-[600px] bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+              <CRTModelViewer />
             </div>
           </section>
         </div>

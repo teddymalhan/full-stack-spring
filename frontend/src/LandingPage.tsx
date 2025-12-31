@@ -91,12 +91,12 @@ function LandingPage() {
   const navigate = useNavigate();
 
   return (
-    <div>
+    <div className="bg-slate-950 min-h-screen">
       <Navigation />
 
       {/* Hero Section */}
-      <section className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center">
-        <div className="max-w-4xl mx-auto px-4 py-32 text-center">
+      <section className="relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 overflow-hidden">
+        <div className="max-w-4xl mx-auto px-4 pt-32 pb-8 text-center">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -158,23 +158,21 @@ function LandingPage() {
             </SignedIn>
           </motion.div>
 
-          {/* Product Mockup */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-            className="mt-16"
-          >
-            <div className="relative max-w-4xl mx-auto rounded-3xl border-8 border-slate-600 shadow-[0_0_100px_rgba(59,130,246,0.5)] overflow-hidden">
-              {/* CRT Screen */}
-              <div className="aspect-video bg-slate-900 flex items-center justify-center relative">
-                <p className="text-white/50 text-xl">Product Mockup Placeholder</p>
-                {/* Scanline effect */}
-                <div className="absolute inset-0 pointer-events-none bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.15)_0px,transparent_1px,transparent_2px,rgba(0,0,0,0.15)_3px)] opacity-20" />
-              </div>
-            </div>
-          </motion.div>
         </div>
+
+        {/* Product Mockup - Outside the constrained container */}
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
+          className="relative w-full flex justify-center"
+        >
+          <img
+            src="/product-mockup.png"
+            alt="RetroWatch CRT TV Experience"
+            className="min-w-[100vw] h-auto object-contain drop-shadow-[0_0_100px_rgba(59,130,246,0.5)]"
+          />
+        </motion.div>
       </section>
 
       {/* Features Section */}

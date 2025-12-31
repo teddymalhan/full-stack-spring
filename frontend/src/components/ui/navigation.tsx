@@ -59,7 +59,7 @@ export function Navigation() {
       >
         <div
           className={cn(
-            "backdrop-blur-xl border px-6 py-3 shadow-lg rounded-full max-w-5xl mx-auto transition-all duration-300",
+            "backdrop-blur-xl border px-6 py-3 shadow-lg rounded-full max-w-7xl mx-auto transition-all duration-300",
             isScrolled
               ? "bg-background/80 border-border shadow-lg"
               : "bg-background/60 border-border/50"
