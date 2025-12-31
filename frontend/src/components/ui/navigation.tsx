@@ -71,9 +71,10 @@ export function Navigation() {
             <div className="flex items-center gap-6">
               <Link
                 to="/"
-                className="text-xl font-bold hover:opacity-80 transition-opacity"
+                className="text-xl font-bold hover:opacity-80 transition-opacity flex items-center gap-2"
               >
-                MyApp
+                <span>📺</span>
+                <span>RetroWatch</span>
               </Link>
 
               <div className="flex space-x-1">
@@ -150,9 +151,10 @@ export function Navigation() {
         >
           <Link
             to="/"
-            className="text-xl font-bold hover:opacity-80 transition-opacity"
+            className="text-xl font-bold hover:opacity-80 transition-opacity flex items-center gap-2"
           >
-            MyApp
+            <span>📺</span>
+            <span>RetroWatch</span>
           </Link>
 
           <div className="flex items-center gap-2">
