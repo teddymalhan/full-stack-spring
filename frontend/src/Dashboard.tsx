@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { UserButton, useAuth, useUser } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
+import { Navigation } from "@/components/ui/navigation";
 import "./Dashboard.css";
 
 function Dashboard() {
@@ -30,17 +31,9 @@ function Dashboard() {
 
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
-        <div className="logo">MyApp</div>
-        <div className="user-section">
-          <span className="user-name">
-            {user?.firstName || user?.emailAddresses[0]?.emailAddress}
-          </span>
-          <UserButton afterSignOutUrl="/" />
-        </div>
-      </header>
+      <Navigation />
 
-      <main className="dashboard-main">
+      <main className="dashboard-main pt-24">
         <div className="dashboard-container">
           <section className="welcome-section">
             <h1>Welcome to your Dashboard</h1>

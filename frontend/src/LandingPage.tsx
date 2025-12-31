@@ -1,5 +1,6 @@
 import { SignInButton, SignUpButton, SignedIn, SignedOut } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
+import { Navigation } from "@/components/ui/navigation";
 import "./LandingPage.css";
 
 function LandingPage() {
@@ -7,26 +8,9 @@ function LandingPage() {
 
   return (
     <div className="landing-page">
-      <header className="landing-header">
-        <div className="logo">MyApp</div>
-        <nav className="landing-nav">
-          <SignedOut>
-            <SignInButton mode="modal">
-              <button className="btn-secondary">Sign In</button>
-            </SignInButton>
-            <SignUpButton mode="modal">
-              <button className="btn-primary">Sign Up</button>
-            </SignUpButton>
-          </SignedOut>
-          <SignedIn>
-            <button className="btn-primary" onClick={() => navigate("/dashboard")}>
-              Go to Dashboard
-            </button>
-          </SignedIn>
-        </nav>
-      </header>
+      <Navigation />
 
-      <main className="landing-main">
+      <main className="landing-main pt-24">
         <section className="hero">
           <h1 className="hero-title">Welcome to MyApp</h1>
           <p className="hero-subtitle">

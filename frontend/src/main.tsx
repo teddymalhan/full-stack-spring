@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 import { initializeSupabase } from "./supabaseClient";
+import { ThemeProvider } from "./components/theme-provider";
 
 const queryClient = new QueryClient();
 
@@ -55,7 +56,9 @@ function ConfiguredApp() {
   return (
     <QueryClientProvider client={queryClient}>
       <ClerkProvider publishableKey={config.clerkPublishableKey}>
-        <App />
+        <ThemeProvider defaultTheme="system" storageKey="app-theme">
+          <App />
+        </ThemeProvider>
       </ClerkProvider>
     </QueryClientProvider>
   );
