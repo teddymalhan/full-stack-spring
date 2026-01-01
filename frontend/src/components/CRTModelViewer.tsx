@@ -1,109 +1,313 @@
-import { Canvas, useLoader } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, Bounds, useBounds } from "@react-three/drei";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as THREE from "three";
-import { Maximize, Minimize } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
+
+// CRT Shader for authentic retro screen effects
+const CRTShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.VideoTexture | null },
+    time: { value: 0 },
+    // Texture transform: repeat and offset for cropping 16:9 to 4:3
+    texRepeat: { value: new THREE.Vector2(-0.75, 1.0) }, // Negative X = flip across Y axis
+    texOffset: { value: new THREE.Vector2(0.875, 0.067) }, // Offset to center
+    // CRT effect parameters
+    scanlineIntensity: { value: 0.12 },
+    scanlineCount: { value: 300.0 },
+    rgbOffset: { value: 0.0025 },
+    vignetteIntensity: { value: 0.4 },
+    brightness: { value: 1.15 },
+    curvature: { value: 0.04 },
+    flickerIntensity: { value: 0.03 },
+    noiseIntensity: { value: 0.05 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float time;
+    uniform vec2 texRepeat;
+    uniform vec2 texOffset;
+    uniform float scanlineIntensity;
+    uniform float scanlineCount;
+    uniform float rgbOffset;
+    uniform float vignetteIntensity;
+    uniform float brightness;
+    uniform float curvature;
+    uniform float flickerIntensity;
+    uniform float noiseIntensity;
+    varying vec2 vUv;
+
+    // Pseudo-random noise function
+    float random(vec2 st) {
+      return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+    }
+
+    // Barrel distortion for CRT curvature
+    vec2 curveUV(vec2 uv) {
+      uv = uv * 2.0 - 1.0;
+      vec2 offset = abs(uv.yx) / vec2(curvature > 0.0 ? 5.0 / curvature : 9999.0);
+      uv = uv + uv * offset * offset;
+      uv = uv * 0.5 + 0.5;
+      return uv;
+    }
+
+    // Apply texture repeat and offset (handles flip via negative repeat)
+    vec2 transformUV(vec2 uv) {
+      return uv * texRepeat + texOffset;
+    }
+
+    void main() {
+      vec2 uv = curveUV(vUv);
+
+      // Out of bounds - show black for curved edges
+      if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+      }
+
+      // Apply texture transformation (repeat/offset/flip)
+      vec2 texUV = transformUV(uv);
+
+      // Chromatic aberration (RGB split) - apply to transformed UVs
+      float aberration = rgbOffset * (1.0 + 0.5 * length(uv - 0.5));
+      float r = texture2D(tDiffuse, vec2(texUV.x + aberration, texUV.y)).r;
+      float g = texture2D(tDiffuse, texUV).g;
+      float b = texture2D(tDiffuse, vec2(texUV.x - aberration, texUV.y)).b;
+      vec3 color = vec3(r, g, b);
+
+      // Scanlines with slight movement
+      float scanlineOffset = time * 0.5;
+      float scanline = sin((uv.y + scanlineOffset * 0.01) * scanlineCount * 3.14159265) * 0.5 + 0.5;
+      scanline = pow(scanline, 1.5);
+      color = mix(color, color * (1.0 - scanlineIntensity), scanline);
+
+      // Horizontal scanline bands (phosphor rows)
+      float phosphor = sin(uv.y * scanlineCount * 2.0 * 3.14159265) * 0.5 + 0.5;
+      color *= 0.95 + 0.05 * phosphor;
+
+      // RGB phosphor pattern (subtle vertical stripes)
+      float phosphorPattern = mod(gl_FragCoord.x, 3.0);
+      if (phosphorPattern < 1.0) {
+        color.r *= 1.1;
+        color.gb *= 0.95;
+      } else if (phosphorPattern < 2.0) {
+        color.g *= 1.1;
+        color.rb *= 0.95;
+      } else {
+        color.b *= 1.1;
+        color.rg *= 0.95;
+      }
+
+      // Vignette (darker edges)
+      float vignette = uv.x * uv.y * (1.0 - uv.x) * (1.0 - uv.y);
+      vignette = clamp(pow(16.0 * vignette, vignetteIntensity), 0.0, 1.0);
+      color *= vignette;
+
+      // Static noise
+      float noise = random(uv + fract(time)) * noiseIntensity;
+      color += noise - noiseIntensity * 0.8;
+
+      // Flicker effect
+      float flicker = 1.0 - flickerIntensity + flickerIntensity * sin(time * 12.0) * sin(time * 7.3);
+      color *= flicker;
+
+      // Brightness adjustment
+      color *= brightness;
+
+      // Slight green/blue tint for that CRT phosphor look
+      color.g *= 1.02;
+      color.b *= 0.98;
+
+      // Clamp final color
+      color = clamp(color, 0.0, 1.0);
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+};
 
 interface ModelProps {
   url: string;
-  screenImageUrl?: string;
+  videoTexture: THREE.VideoTexture | null;
 }
 
-function Model({ url, screenImageUrl }: ModelProps) {
-  const { scene } = useGLTF(url);
+function Model({ url, videoTexture }: ModelProps) {
+  const { scene: originalScene } = useGLTF(url);
   const bounds = useBounds();
+  const crtMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
 
-  // Load the screen texture
-  const screenTexture = useLoader(THREE.TextureLoader, screenImageUrl || "/models/tv-screen.jpg");
-
-  // Flip the texture vertically
-  screenTexture.flipY = false;
-
-  // Configure texture to crop/cover instead of stretch
-  // Assuming 4:3 CRT aspect ratio and adjusting for image aspect ratio
-  useEffect(() => {
-    if (screenTexture.image) {
-      const imageAspect = screenTexture.image.width / screenTexture.image.height;
-      const screenAspect = 4 / 3; // CRT TV aspect ratio
-
-      if (imageAspect > screenAspect) {
-        // Image is wider - crop sides
-        const scale = screenAspect / imageAspect;
-        screenTexture.repeat.set(scale, 1);
-        screenTexture.offset.set((1 - scale) / 2, 0);
-      } else {
-        // Image is taller - crop top/bottom
-        const scale = imageAspect / screenAspect;
-        screenTexture.repeat.set(1, scale);
-        screenTexture.offset.set(0, (1 - scale) / 2);
-      }
-      screenTexture.needsUpdate = true;
-    }
-  }, [screenTexture]);
+  // Clone scene to avoid caching issues
+  const scene = useMemo(() => originalScene.clone(true), [originalScene]);
 
   useEffect(() => {
-    // Fit camera to model on load
     bounds.refresh().fit();
   }, [bounds, scene]);
 
+  // Apply CRT shader to screen mesh only
   useEffect(() => {
-    if (screenTexture) {
-      // Log all mesh names to help identify the screen
-      console.log("Model meshes:");
-      scene.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          console.log("Mesh:", child.name, "Material:", (child.material as THREE.Material)?.name);
-        }
-      });
+    if (!videoTexture) return;
 
-      // Traverse the model to find the screen material and replace it
-      scene.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          const meshName = child.name.toLowerCase();
-          const materialName = ((child.material as THREE.Material)?.name || "").toLowerCase();
+    console.log("=== Applying CRT shader to model ===");
 
-          // Look for screen-related mesh or material names
-          if (
-            meshName.includes("screen") ||
-            meshName.includes("display") ||
-            meshName.includes("glass") ||
-            meshName.includes("tv") ||
-            meshName.includes("crt") ||
-            materialName.includes("screen") ||
-            materialName.includes("emissive")
-          ) {
-            console.log("Replacing material for:", child.name);
-            const material = new THREE.MeshBasicMaterial({
-              map: screenTexture,
-              side: THREE.DoubleSide,
-            });
-            child.material = material;
-          }
+    // Log ALL meshes
+    const allMeshes: string[] = [];
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const mat = child.material as THREE.Material;
+        allMeshes.push(`"${child.name}" (mat: "${mat?.name || 'unnamed'}")`);
+      }
+    });
+    console.log("All meshes:", allMeshes.join(", "));
+
+    // Create CRT shader material with texture transform uniforms
+    // texRepeat: -0.75 x (horizontal flip + crop), 1.0 y (no vertical flip)
+    // texOffset: 0.875 x (center crop), 0.067 y
+    const crtMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: videoTexture },
+        time: { value: 0 },
+        texRepeat: { value: new THREE.Vector2(-0.75, 1.0) },
+        texOffset: { value: new THREE.Vector2(0.875, 0.067) },
+        scanlineIntensity: { value: CRTShader.uniforms.scanlineIntensity.value },
+        scanlineCount: { value: CRTShader.uniforms.scanlineCount.value },
+        rgbOffset: { value: CRTShader.uniforms.rgbOffset.value },
+        vignetteIntensity: { value: CRTShader.uniforms.vignetteIntensity.value },
+        brightness: { value: CRTShader.uniforms.brightness.value },
+        curvature: { value: CRTShader.uniforms.curvature.value },
+        flickerIntensity: { value: CRTShader.uniforms.flickerIntensity.value },
+        noiseIntensity: { value: CRTShader.uniforms.noiseIntensity.value },
+      },
+      vertexShader: CRTShader.vertexShader,
+      fragmentShader: CRTShader.fragmentShader,
+      side: THREE.DoubleSide,
+    });
+
+    crtMaterialRef.current = crtMaterial;
+
+    // Find and apply to screen mesh only
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const materialName = ((child.material as THREE.Material)?.name || "").toLowerCase();
+
+        if (materialName === "screen") {
+          console.log(">>> SCREEN FOUND, applying CRT shader:", child.name);
+          child.material = crtMaterial;
         }
-      });
+      }
+    });
+
+    return () => {
+      crtMaterial.dispose();
+    };
+  }, [scene, videoTexture]);
+
+  // Update time uniform and texture every frame
+  useFrame(({ clock }) => {
+    if (videoTexture) {
+      videoTexture.needsUpdate = true;
     }
-  }, [scene, screenTexture]);
+    if (crtMaterialRef.current) {
+      crtMaterialRef.current.uniforms.time.value = clock.getElapsedTime();
+    }
+  });
 
   return <primitive object={scene} />;
 }
 
 interface CRTModelViewerProps {
   modelPath?: string;
-  screenImageUrl?: string;
   className?: string;
+  videoUrl?: string;
 }
 
 export function CRTModelViewer({
   modelPath = "/models/tv_sony_trinitron_crt_low.glb",
-  screenImageUrl = "/models/tv-screen.jpg",
-  className = ""
+  className = "",
+  videoUrl
 }: CRTModelViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hideTimeoutRef = useRef<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(null);
+  const [showControls, setShowControls] = useState(true);
+
+  // Create video element and texture
+  useEffect(() => {
+    if (!videoUrl) return;
+
+    const video = document.createElement('video');
+    video.src = videoUrl;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = 'anonymous';
+    video.preload = 'auto';
+
+    videoRef.current = video;
+
+    const handleLoadedMetadata = () => {
+      setDuration(video.duration);
+      console.log("Video loaded, duration:", video.duration, "dimensions:", video.videoWidth, "x", video.videoHeight);
+
+      // Create texture after video is loaded
+      const texture = new THREE.VideoTexture(video);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBAFormat;
+      texture.flipY = false;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      setVideoTexture(texture);
+
+      // Auto-play to ensure texture has content
+      video.play().then(() => {
+        console.log("Video auto-started for texture");
+      }).catch((e) => {
+        console.log("Auto-play blocked, user must click play:", e);
+      });
+    };
+
+    const handleTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+    };
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+
+    // Start loading
+    video.load();
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.pause();
+      video.src = '';
+      if (videoTexture) {
+        videoTexture.dispose();
+      }
+    };
+  }, [videoUrl]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
-
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen();
       setIsFullscreen(true);
@@ -117,46 +321,207 @@ export function CRTModelViewer({
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  return (
-    <div ref={containerRef} className={`${className} relative bg-slate-900`} style={{ width: '100%', height: '100%' }}>
-      <Canvas
-        camera={{ position: [0, 0, 10], fov: 45 }}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Suspense fallback={null}>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} intensity={1} />
-          <directionalLight position={[-5, 5, 5]} intensity={0.5} />
-          <Bounds fit clip observe margin={1.5}>
-            <Model url={modelPath} screenImageUrl={screenImageUrl} />
-          </Bounds>
-          <OrbitControls
-            enableZoom={true}
-            enablePan={false}
-            enableRotate={true}
-            target={[0, 0, 0]}
-            makeDefault
-          />
-          <Environment preset="city" />
-        </Suspense>
-      </Canvas>
+  // Auto-hide controls after inactivity
+  const resetHideTimer = useCallback(() => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+    }
+    setShowControls(true);
+    hideTimeoutRef.current = window.setTimeout(() => {
+      setShowControls(false);
+    }, 2500);
+  }, []);
 
-      <button
-        onClick={toggleFullscreen}
-        className="absolute bottom-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur-sm transition-colors"
-        title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-      >
-        {isFullscreen ? (
-          <Minimize className="w-5 h-5 text-white" />
-        ) : (
-          <Maximize className="w-5 h-5 text-white" />
-        )}
-      </button>
+  // Handle mouse movement for showing controls
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const bottomThreshold = rect.height * 0.25; // Bottom 25% of container
+      const mouseY = e.clientY - rect.top;
+
+      if (mouseY > rect.height - bottomThreshold) {
+        resetHideTimer();
+      }
+    };
+
+    const handleMouseLeave = () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+      setShowControls(false);
+    };
+
+    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      container.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseleave', handleMouseLeave);
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
+  }, [resetHideTimer]);
+
+  const togglePlay = useCallback(() => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+    } else {
+      videoRef.current.pause();
+    }
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !videoRef.current.muted;
+    setIsMuted(videoRef.current.muted);
+  }, []);
+
+  const skipBackward = useCallback(() => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+  }, []);
+
+  const skipForward = useCallback(() => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 10);
+  }, [duration]);
+
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!videoRef.current) return;
+    const time = parseFloat(e.target.value);
+    videoRef.current.currentTime = time;
+    setCurrentTime(time);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <div ref={containerRef} className={`${className} flex flex-col bg-slate-900`} style={{ width: '100%', height: '100%' }}>
+      {/* 3D Viewer */}
+      <div className="relative flex-1 min-h-0">
+        <Canvas
+          camera={{ position: [0, 0, 10], fov: 45 }}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <Suspense fallback={null}>
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[5, 5, 5]} intensity={1} />
+            <directionalLight position={[-5, 5, 5]} intensity={0.5} />
+            <Bounds fit clip observe margin={1.2}>
+              <Model url={modelPath} videoTexture={videoTexture} />
+            </Bounds>
+            <OrbitControls
+              enableZoom={true}
+              enablePan={false}
+              enableRotate={true}
+              target={[0, 0, 0]}
+              makeDefault
+            />
+            <Environment preset="city" />
+          </Suspense>
+        </Canvas>
+
+        <button
+          onClick={toggleFullscreen}
+          className="absolute bottom-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur-sm transition-colors"
+          title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          {isFullscreen ? (
+            <Minimize className="w-5 h-5 text-white" />
+          ) : (
+            <Maximize className="w-5 h-5 text-white" />
+          )}
+        </button>
+      </div>
+
+      {/* Video Controls Bar */}
+      {videoUrl && (
+        <div
+          className={`bg-slate-800 border-t border-slate-700 p-3 transition-all duration-300 ${
+            isFullscreen
+              ? `absolute bottom-0 left-0 right-0 ${showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'}`
+              : ''
+          }`}
+        >
+          {/* Timeline */}
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-white/70 text-sm font-mono w-12">{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min={0}
+              max={duration || 100}
+              value={currentTime}
+              onChange={handleSeek}
+              className="flex-1 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
+                [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+              style={{
+                background: `linear-gradient(to right, rgb(34 211 238) 0%, rgb(34 211 238) ${(currentTime / (duration || 1)) * 100}%, rgb(71 85 105) ${(currentTime / (duration || 1)) * 100}%, rgb(71 85 105) 100%)`
+              }}
+            />
+            <span className="text-white/70 text-sm font-mono w-12">{formatTime(duration)}</span>
+          </div>
+
+          {/* Control Buttons */}
+          <div className="flex items-center justify-center gap-2">
+            <button
+              onClick={skipBackward}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              title="Skip back 10s"
+            >
+              <SkipBack className="w-5 h-5 text-white" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="p-3 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <Pause className="w-6 h-6 text-cyan-400" />
+              ) : (
+                <Play className="w-6 h-6 text-cyan-400" />
+              )}
+            </button>
+
+            <button
+              onClick={skipForward}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              title="Skip forward 10s"
+            >
+              <SkipForward className="w-5 h-5 text-white" />
+            </button>
+
+            <div className="w-px h-6 bg-slate-600 mx-2" />
+
+            <button
+              onClick={toggleMute}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5 text-white" />
+              ) : (
+                <Volume2 className="w-5 h-5 text-white" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
