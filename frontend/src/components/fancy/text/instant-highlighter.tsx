@@ -45,12 +45,14 @@ export function InstantHighlighter({
     WebkitBoxDecorationBreak: "clone",
   } as React.CSSProperties;
 
+  const Component = ElementTag as React.ComponentType<React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }>;
+
   return (
-    <ElementTag {...props}>
+    <Component {...props}>
       <span className={cn("inline", className)} style={highlightStyle}>
         {children}
       </span>
-    </ElementTag>
+    </Component>
   );
 }
 

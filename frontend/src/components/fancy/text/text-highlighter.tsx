@@ -203,8 +203,15 @@ export const TextHighlighter = forwardRef<
       WebkitBoxDecorationBreak: "clone",
     } as React.CSSProperties;
 
+    const Component = ElementTag as React.ComponentType<
+      React.HTMLAttributes<HTMLElement> & {
+        ref?: React.Ref<HTMLDivElement>;
+        children?: React.ReactNode;
+      }
+    >;
+
     return (
-      <ElementTag
+      <Component
         ref={componentRef}
         onMouseEnter={() => triggerType === "hover" && setIsHovered(true)}
         onMouseLeave={() => triggerType === "hover" && setIsHovered(false)}
@@ -235,7 +242,7 @@ export const TextHighlighter = forwardRef<
             {children}
           </motion.span>
         )}
-      </ElementTag>
+      </Component>
     );
   },
 );

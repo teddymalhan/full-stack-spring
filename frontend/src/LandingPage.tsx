@@ -1,91 +1,11 @@
 import { SignInButton, SignUpButton, SignedIn, SignedOut } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Tv, Sparkles, Clock, Library, Settings, Users } from "lucide-react";
 
 import { Navigation } from "@/components/ui/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShinyButton } from "@/components/ui/shiny-button";
-import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Avatar } from "@/components/ui/avatar";
-
-// Feature data
-const features = [
-  {
-    name: "CRT Simulation",
-    description: "Authentic scanlines, phosphor glow, and warm vintage feel",
-    icon: Tv,
-    gradient: "from-blue-500/20 to-purple-500/20",
-    colSpan: "col-span-3 md:col-span-2"
-  },
-  {
-    name: "AI-Generated Ads",
-    description: "Period-accurate commercials seamlessly baked into your content",
-    icon: Sparkles,
-    gradient: "from-purple-500/20 to-pink-500/20",
-    colSpan: "col-span-3 md:col-span-1"
-  },
-  {
-    name: "Time Travel",
-    description: "Pick a decade and experience TV exactly as it was",
-    icon: Clock,
-    gradient: "from-pink-500/20 to-rose-500/20",
-    colSpan: "col-span-3 md:col-span-1"
-  },
-  {
-    name: "Content Library",
-    description: "Curated collection of classic shows and movies",
-    icon: Library,
-    gradient: "from-indigo-500/20 to-blue-500/20",
-    colSpan: "col-span-3 md:col-span-2"
-  },
-  {
-    name: "Customization",
-    description: "Adjust TV settings like color, contrast, and distortion",
-    icon: Settings,
-    gradient: "from-cyan-500/20 to-teal-500/20",
-    colSpan: "col-span-3 md:col-span-1"
-  },
-  {
-    name: "Social Viewing",
-    description: "Watch parties with friends, just like the old days",
-    icon: Users,
-    gradient: "from-green-500/20 to-emerald-500/20",
-    colSpan: "col-span-3 md:col-span-1"
-  }
-];
-
-// How It Works steps
-const steps = [
-  { title: "Choose Your Era", description: "Select a decade from the 1950s to 1990s" },
-  { title: "Pick Your Show", description: "Browse our library of classic TV shows" },
-  { title: "Customize Your Set", description: "Adjust CRT settings to your preference" },
-  { title: "Start Watching", description: "Sit back and enjoy authentic retro viewing" }
-];
-
-// Testimonials data
-const testimonials = [
-  {
-    name: "Sarah M.",
-    role: "Vintage TV Collector",
-    quote: "RetroWatch takes me back to Saturday mornings in the 80s. The CRT effect is spot-on!",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah"
-  },
-  {
-    name: "Mike D.",
-    role: "Retro Gaming Enthusiast",
-    quote: "Finally, a way to watch classic shows the way they were meant to be seen. Love it!",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Mike"
-  },
-  {
-    name: "Jennifer K.",
-    role: "Design Professional",
-    quote: "The AI-generated commercials are hilarious and surprisingly accurate!",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jennifer"
-  }
-];
 
 function LandingPage() {
   const navigate = useNavigate();
