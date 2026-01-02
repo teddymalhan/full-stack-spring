@@ -458,6 +458,12 @@ export function CRTModelViewer({
   className = "",
   videoUrl
 }: CRTModelViewerProps) {
+  // Ensure model path is absolute (starts with /)
+  const normalizedModelPath = modelPath.startsWith('/') ? modelPath : `/${modelPath}`;
+  
+  useEffect(() => {
+    console.log("Loading GLB model from:", normalizedModelPath);
+  }, [normalizedModelPath]);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hideTimeoutRef = useRef<number | null>(null);
@@ -496,7 +502,13 @@ export function CRTModelViewer({
 
   useEffect(() => {
     // Skip video element creation for YouTube URLs
-    if (!videoUrl || videoSourceType === VideoSourceType.YouTubeEmbed) return;
+    if (!videoUrl) return;
+    
+    // Double-check it's not a YouTube URL before creating video element
+    if (isYouTubeUrl(videoUrl) || videoSourceType === VideoSourceType.YouTubeEmbed) {
+      console.log("Skipping video element creation for YouTube URL:", videoUrl);
+      return;
+    }
 
     const video = document.createElement('video');
     video.src = videoUrl;
@@ -792,7 +804,7 @@ export function CRTModelViewer({
             <directionalLight position={[-5, 5, 5]} intensity={0.5} />
             <Bounds fit clip observe margin={1.2}>
               <Model 
-                url={modelPath} 
+                url={normalizedModelPath} 
                 videoTexture={videoSourceType === VideoSourceType.YouTubeEmbed ? null : videoTexture}
                 onScreenMeshFound={setScreenMesh}
               />
