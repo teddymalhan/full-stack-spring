@@ -5,9 +5,10 @@ import { Link, useLocation } from "react-router-dom";
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 
 const navItems = [
-  { name: "Home", href: "/" },
+  { name: "Home", href: "/", protected: true },
   { name: "Channel Guide", href: "/channels", protected: true },
   { name: "Settings", href: "/settings", protected: true },
 ];
@@ -114,8 +115,9 @@ export function Navigation() {
               </div>
             </div>
 
-            {/* Right side - Auth */}
+            {/* Right side - Theme Toggle & Auth */}
             <div className="flex items-center gap-3">
+              <AnimatedThemeToggler className="p-2 rounded-full hover:bg-accent/50 transition-colors" />
               <SignedOut>
                 <SignInButton mode="modal">
                   <Button variant="ghost" size="sm">
@@ -157,6 +159,7 @@ export function Navigation() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <AnimatedThemeToggler className="p-2 rounded-full hover:bg-accent/50 transition-colors" />
             <button
               onClick={toggleMobileMenu}
               className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-accent/50 transition-colors duration-200"
