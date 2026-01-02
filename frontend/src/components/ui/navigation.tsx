@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { name: "Home", href: "/" },
-  { name: "Dashboard", href: "/dashboard", protected: true },
+  { name: "Channel Guide", href: "/channels", protected: true },
+  { name: "Settings", href: "/settings", protected: true },
 ];
 
 export function Navigation() {

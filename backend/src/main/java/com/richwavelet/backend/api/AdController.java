@@ -20,7 +20,6 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/protected/ads")
 public class AdController {
-
     private static final Logger logger = LoggerFactory.getLogger(AdController.class);
     private static final String BUCKET = "ads";
     private static final Set<String> ALLOWED_TYPES = Set.of(
@@ -47,13 +46,12 @@ public class AdController {
         String userId = getUserId(authentication);
         logger.info("Uploading ad for user: {}", userId);
 
-        // Validate file
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body("File is empty");
         }
 
         if (file.getSize() > MAX_FILE_SIZE) {
-            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+            return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
                     .body("Ad file size exceeds maximum allowed (100MB)");
         }
 
@@ -64,14 +62,11 @@ public class AdController {
         }
 
         try {
-            // Ensure user folder exists
             storageService.ensureUserFolderExists(userId, BUCKET);
 
-            // Upload to storage
             String storagePath = storageService.uploadVideo(userId, file, BUCKET);
             String fileUrl = storageService.getPublicUrl(BUCKET, storagePath);
 
-            // Save to database
             AdUpload adUpload = new AdUpload();
             adUpload.setUserId(userId);
             adUpload.setFileName(storageService.sanitizeFileName(file.getOriginalFilename()));
@@ -117,11 +112,9 @@ public class AdController {
                 .filter(ad -> ad.getUserId().equals(userId))
                 .map(ad -> {
                     try {
-                        // Delete from storage
                         if (ad.getStoragePath() != null) {
                             storageService.deleteFromStorage(BUCKET, ad.getStoragePath());
                         }
-                        // Delete from database
                         adUploadRepository.delete(ad);
                         return ResponseEntity.ok().body("Ad deleted");
                     } catch (IOException e) {

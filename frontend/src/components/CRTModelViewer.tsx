@@ -2,7 +2,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, Bounds, useBounds } from "@react-three/drei";
 import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as THREE from "three";
-import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, ScreenShare, ScreenShareOff } from "lucide-react";
 
 // CRT Shader for authentic retro screen effects
 const CRTShader = {
@@ -142,6 +142,12 @@ function Model({ url, videoTexture }: ModelProps) {
   const { scene: originalScene } = useGLTF(url);
   const bounds = useBounds();
   const crtMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  const videoTextureRef = useRef<THREE.VideoTexture | null>(videoTexture);
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    videoTextureRef.current = videoTexture;
+  }, [videoTexture]);
 
   // Clone scene to avoid caching issues
   const scene = useMemo(() => originalScene.clone(true), [originalScene]);
@@ -210,11 +216,17 @@ function Model({ url, videoTexture }: ModelProps) {
 
   // Update time uniform and texture every frame
   useFrame(({ clock }) => {
-    if (videoTexture) {
-      videoTexture.needsUpdate = true;
+    const currentTexture = videoTextureRef.current;
+    if (currentTexture) {
+      currentTexture.needsUpdate = true;
     }
     if (crtMaterialRef.current) {
       crtMaterialRef.current.uniforms.time.value = clock.getElapsedTime();
+      // Ensure texture uniform is always in sync with the current texture
+      if (currentTexture && crtMaterialRef.current.uniforms.tDiffuse.value !== currentTexture) {
+        console.log('Switching texture in useFrame');
+        crtMaterialRef.current.uniforms.tDiffuse.value = currentTexture;
+      }
     }
   });
 
@@ -242,6 +254,10 @@ export function CRTModelViewer({
   const [duration, setDuration] = useState(0);
   const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(null);
   const [showControls, setShowControls] = useState(true);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isCaptureMuted, setIsCaptureMuted] = useState(false);
+  const captureStreamRef = useRef<MediaStream | null>(null);
+  const captureVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Create video element and texture
   useEffect(() => {
@@ -302,6 +318,10 @@ export function CRTModelViewer({
       video.src = '';
       if (videoTexture) {
         videoTexture.dispose();
+      }
+      // Stop capture stream on unmount
+      if (captureStreamRef.current) {
+        captureStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
   }, [videoUrl]);
@@ -371,13 +391,26 @@ export function CRTModelViewer({
   }, [resetHideTimer]);
 
   const togglePlay = useCallback(() => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play();
+    if (isCapturing) {
+      // During capture, play/pause the capture video element
+      if (!captureVideoRef.current) return;
+      if (captureVideoRef.current.paused) {
+        captureVideoRef.current.play();
+        setIsPlaying(true);
+      } else {
+        captureVideoRef.current.pause();
+        setIsPlaying(false);
+      }
     } else {
-      videoRef.current.pause();
+      // Normal video mode
+      if (!videoRef.current) return;
+      if (videoRef.current.paused) {
+        videoRef.current.play();
+      } else {
+        videoRef.current.pause();
+      }
     }
-  }, []);
+  }, [isCapturing]);
 
   const toggleMute = useCallback(() => {
     if (!videoRef.current) return;
@@ -402,6 +435,116 @@ export function CRTModelViewer({
     setCurrentTime(time);
   }, []);
 
+  const stopCapture = useCallback(() => {
+    // Stop all tracks in the capture stream
+    if (captureStreamRef.current) {
+      captureStreamRef.current.getTracks().forEach(track => track.stop());
+      captureStreamRef.current = null;
+    }
+
+    // Clean up capture video element
+    if (captureVideoRef.current) {
+      captureVideoRef.current.srcObject = null;
+      captureVideoRef.current = null;
+    }
+
+    setIsCapturing(false);
+
+    // Restore original video texture if videoUrl exists
+    if (videoRef.current && videoUrl) {
+      const texture = new THREE.VideoTexture(videoRef.current);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBAFormat;
+      texture.flipY = false;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      setVideoTexture(texture);
+
+      // Resume video playback
+      videoRef.current.play().catch(() => {});
+    }
+  }, [videoUrl]);
+
+  const startCapture = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          frameRate: 30,
+        },
+        audio: true,
+      });
+
+      // Create video element for capture stream
+      const captureVideo = document.createElement('video');
+      captureVideo.srcObject = stream;
+      captureVideo.muted = isCaptureMuted; // Respect mute state
+      captureVideo.playsInline = true;
+      captureVideo.autoplay = true;
+
+      // Handle stream ending (user clicks browser's stop sharing button)
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.addEventListener('ended', () => {
+          stopCapture();
+        });
+      }
+
+      // Wait for video to be ready before creating texture
+      await new Promise<void>((resolve) => {
+        captureVideo.onloadedmetadata = () => {
+          console.log('Capture video ready:', captureVideo.videoWidth, 'x', captureVideo.videoHeight);
+          resolve();
+        };
+      });
+
+      await captureVideo.play();
+
+      // Create new texture from capture stream
+      const texture = new THREE.VideoTexture(captureVideo);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBAFormat;
+      texture.flipY = false;
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+
+      console.log('Capture texture created, setting state...');
+
+      // Pause original video if playing
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+
+      // Store references
+      captureStreamRef.current = stream;
+      captureVideoRef.current = captureVideo;
+
+      // Update texture state
+      setVideoTexture(texture);
+      setIsCapturing(true);
+      setIsPlaying(true);
+
+    } catch (err) {
+      // User cancelled or permission denied - silently ignore
+      console.log('Screen capture cancelled or denied:', err);
+    }
+  }, [stopCapture, isCaptureMuted]);
+
+  const toggleCapture = useCallback(() => {
+    if (isCapturing) {
+      stopCapture();
+    } else {
+      startCapture();
+    }
+  }, [isCapturing, startCapture, stopCapture]);
+
+  const toggleCaptureMute = useCallback(() => {
+    if (captureVideoRef.current) {
+      captureVideoRef.current.muted = !captureVideoRef.current.muted;
+      setIsCaptureMuted(captureVideoRef.current.muted);
+    }
+  }, []);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -409,7 +552,7 @@ export function CRTModelViewer({
   };
 
   return (
-    <div ref={containerRef} className={`${className} flex flex-col bg-slate-900`} style={{ width: '100%', height: '100%' }}>
+    <div ref={containerRef} className={`${className} flex flex-col bg-black`} style={{ width: '100%', height: '100%' }}>
       {/* 3D Viewer */}
       <div className="relative flex-1 min-h-0">
         <Canvas
@@ -456,35 +599,40 @@ export function CRTModelViewer({
               : ''
           }`}
         >
-          {/* Timeline */}
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-white/70 text-sm font-mono w-12">{formatTime(currentTime)}</span>
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              value={currentTime}
-              onChange={handleSeek}
-              className="flex-1 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-                [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
-                [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.5)]"
-              style={{
-                background: `linear-gradient(to right, rgb(34 211 238) 0%, rgb(34 211 238) ${(currentTime / (duration || 1)) * 100}%, rgb(71 85 105) ${(currentTime / (duration || 1)) * 100}%, rgb(71 85 105) 100%)`
-              }}
-            />
-            <span className="text-white/70 text-sm font-mono w-12">{formatTime(duration)}</span>
-          </div>
+          {/* Timeline - hidden during capture */}
+          {!isCapturing && (
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-white/70 text-sm font-mono w-12">{formatTime(currentTime)}</span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                value={currentTime}
+                onChange={handleSeek}
+                className="flex-1 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+                  [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer
+                  [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                style={{
+                  background: `linear-gradient(to right, rgb(34 211 238) 0%, rgb(34 211 238) ${(currentTime / (duration || 1)) * 100}%, rgb(71 85 105) ${(currentTime / (duration || 1)) * 100}%, rgb(71 85 105) 100%)`
+                }}
+              />
+              <span className="text-white/70 text-sm font-mono w-12">{formatTime(duration)}</span>
+            </div>
+          )}
 
           {/* Control Buttons */}
           <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={skipBackward}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-              title="Skip back 10s"
-            >
-              <SkipBack className="w-5 h-5 text-white" />
-            </button>
+            {/* Skip buttons - hidden during capture */}
+            {!isCapturing && (
+              <button
+                onClick={skipBackward}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                title="Skip back 10s"
+              >
+                <SkipBack className="w-5 h-5 text-white" />
+              </button>
+            )}
 
             <button
               onClick={togglePlay}
@@ -498,22 +646,40 @@ export function CRTModelViewer({
               )}
             </button>
 
-            <button
-              onClick={skipForward}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-              title="Skip forward 10s"
-            >
-              <SkipForward className="w-5 h-5 text-white" />
-            </button>
+            {!isCapturing && (
+              <button
+                onClick={skipForward}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                title="Skip forward 10s"
+              >
+                <SkipForward className="w-5 h-5 text-white" />
+              </button>
+            )}
 
             <div className="w-px h-6 bg-slate-600 mx-2" />
 
             <button
-              onClick={toggleMute}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-              title={isMuted ? "Unmute" : "Mute"}
+              onClick={toggleCapture}
+              className={`p-2 rounded-lg transition-colors ${
+                isCapturing
+                  ? 'bg-cyan-500/30 hover:bg-cyan-500/40'
+                  : 'bg-white/10 hover:bg-white/20'
+              }`}
+              title={isCapturing ? "Stop Capture" : "Capture Tab"}
             >
-              {isMuted ? (
+              {isCapturing ? (
+                <ScreenShareOff className="w-5 h-5 text-cyan-400" />
+              ) : (
+                <ScreenShare className="w-5 h-5 text-white" />
+              )}
+            </button>
+
+            <button
+              onClick={isCapturing ? toggleCaptureMute : toggleMute}
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              title={(isCapturing ? isCaptureMuted : isMuted) ? "Unmute" : "Mute"}
+            >
+              {(isCapturing ? isCaptureMuted : isMuted) ? (
                 <VolumeX className="w-5 h-5 text-white" />
               ) : (
                 <Volume2 className="w-5 h-5 text-white" />
