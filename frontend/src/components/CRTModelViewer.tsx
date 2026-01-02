@@ -1,8 +1,190 @@
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, Bounds, useBounds } from "@react-three/drei";
 import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as THREE from "three";
+import { CSS3DRenderer, CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, ScreenShare, ScreenShareOff } from "lucide-react";
+
+// Video source type
+const VideoSourceType = {
+  LocalVideo: "local",
+  ScreenCapture: "capture",
+  YouTubeEmbed: "youtube"
+} as const;
+
+type VideoSourceTypeValue = typeof VideoSourceType[keyof typeof VideoSourceType];
+
+// YouTube URL parsing utilities
+function extractYouTubeVideoId(url: string): string | null {
+  if (!url) return null;
+  
+  // Handle various YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /youtube\.com\/.*[?&]v=([^&\n?#]+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+function isYouTubeUrl(url: string): boolean {
+  return extractYouTubeVideoId(url) !== null;
+}
+
+function getYouTubeEmbedUrl(videoId: string, autoplay: boolean = true, mute: boolean = true): string {
+  const params = new URLSearchParams({
+    autoplay: autoplay ? "1" : "0",
+    mute: mute ? "1" : "0",
+    playsinline: "1",
+    rel: "0",
+    modestbranding: "1",
+  });
+  return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+}
+
+/**
+ * CSS3D YouTube Component - renders YouTube iframe ON the TV screen mesh in 3D space
+ * 
+ * Uses CSS3DRenderer to place a DOM iframe in 3D space, synced with the WebGL camera.
+ * The iframe is positioned and scaled to match the TV screen mesh exactly.
+ * 
+ * LIMITATIONS (browser security / YouTube ToS):
+ * - Cannot apply CRT shaders (no pixel access to iframe)
+ * - For CRT effects on YouTube, users must use screen capture mode
+ */
+interface CSS3DYouTubeProps {
+  screenMesh: THREE.Mesh | null;
+  youtubeVideoId: string | null;
+  isMuted: boolean;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function CSS3DYouTube({ screenMesh, youtubeVideoId, isMuted, containerRef }: CSS3DYouTubeProps) {
+  const { camera, gl, size } = useThree();
+  const cssRendererRef = useRef<CSS3DRenderer | null>(null);
+  const cssSceneRef = useRef<THREE.Scene | null>(null);
+  const cssObjectRef = useRef<CSS3DObject | null>(null);
+  const screenScaleXRef = useRef<number>(0.05);
+  const screenScaleYRef = useRef<number>(0.05);
+  const initializedRef = useRef(false);
+
+  // Initialize CSS3D renderer (only once)
+  useEffect(() => {
+    if (!youtubeVideoId || !containerRef.current) return;
+    if (initializedRef.current) return; // Prevent multiple initializations
+    
+    initializedRef.current = true;
+    console.log("Creating CSS3D renderer for YouTube");
+
+    // Create CSS3D renderer
+    const cssRenderer = new CSS3DRenderer();
+    cssRenderer.setSize(size.width, size.height);
+    cssRenderer.domElement.style.position = "absolute";
+    cssRenderer.domElement.style.top = "0";
+    cssRenderer.domElement.style.left = "0";
+    cssRenderer.domElement.style.pointerEvents = "none";
+    cssRenderer.domElement.style.zIndex = "1";
+
+    // Create scene
+    const cssScene = new THREE.Scene();
+
+    // Create iframe (640x480 pixels)
+    const iframe = document.createElement("iframe");
+    iframe.src = getYouTubeEmbedUrl(youtubeVideoId, true, isMuted);
+    iframe.style.width = "640px";
+    iframe.style.height = "540px"; // Taller to fill CRT screen better
+    iframe.style.border = "0";
+    iframe.style.pointerEvents = "auto";
+    iframe.style.backgroundColor = "#000";
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    iframe.allowFullscreen = true;
+
+    // Wrap in CSS3DObject
+    const cssObject = new CSS3DObject(iframe);
+    
+    // Default scale based on typical screen size (~37 world units after Bounds)
+    // Scale = worldUnits / pixels = 37 * 0.85 / 640 ≈ 0.05
+    cssObject.scale.set(0.05, 0.05, 0.05);
+    cssObject.position.set(0, 0, 0);
+
+    cssScene.add(cssObject);
+    containerRef.current.appendChild(cssRenderer.domElement);
+
+    cssRendererRef.current = cssRenderer;
+    cssSceneRef.current = cssScene;
+    cssObjectRef.current = cssObject;
+
+    // Handle resize
+    const handleResize = () => {
+      if (cssRendererRef.current) {
+        cssRendererRef.current.setSize(gl.domElement.clientWidth, gl.domElement.clientHeight);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      initializedRef.current = false;
+      if (cssSceneRef.current && cssObjectRef.current) {
+        cssSceneRef.current.remove(cssObjectRef.current);
+      }
+      if (cssRendererRef.current && containerRef.current) {
+        try {
+          containerRef.current.removeChild(cssRendererRef.current.domElement);
+        } catch (e) { /* ignore */ }
+      }
+      cssRendererRef.current = null;
+      cssSceneRef.current = null;
+      cssObjectRef.current = null;
+    };
+  }, [youtubeVideoId, containerRef, gl, isMuted, size.width, size.height]);
+
+  // Update position and scale every frame
+  useFrame(() => {
+    if (!cssRendererRef.current || !cssSceneRef.current || !cssObjectRef.current) return;
+
+    if (screenMesh) {
+      screenMesh.updateMatrixWorld(true);
+      
+      // Get screen position and orientation
+      const worldPos = new THREE.Vector3();
+      const worldQuat = new THREE.Quaternion();
+      screenMesh.getWorldPosition(worldPos);
+      screenMesh.getWorldQuaternion(worldQuat);
+
+      // Calculate screen size from bounding box
+      const box = new THREE.Box3().setFromObject(screenMesh);
+      const screenWidth = box.max.x - box.min.x;
+      const screenHeight = box.max.y - box.min.y;
+      
+      // Calculate separate X/Y scales to fill screen exactly
+      // iframe is 640x540 pixels
+      if (screenWidth > 1 && screenHeight > 1) {
+        screenScaleXRef.current = (screenWidth * 0.97) / 640;
+        screenScaleYRef.current = (screenHeight * 0.96) / 540;
+      }
+
+      // Apply position, rotation, and scale
+      cssObjectRef.current.position.copy(worldPos);
+      cssObjectRef.current.position.z += 0.5; // Offset in front of screen
+      cssObjectRef.current.position.y += 0.1; // Offset up
+      cssObjectRef.current.quaternion.copy(worldQuat);
+      cssObjectRef.current.scale.set(screenScaleXRef.current, screenScaleYRef.current, 1);
+    }
+
+    // Render CSS3D scene with WebGL camera
+    cssRendererRef.current.render(cssSceneRef.current, camera);
+  });
+
+  return null;
+}
 
 // CRT Shader for authentic retro screen effects
 const CRTShader = {
@@ -136,33 +318,58 @@ const CRTShader = {
 interface ModelProps {
   url: string;
   videoTexture: THREE.VideoTexture | null;
+  onScreenMeshFound?: (mesh: THREE.Mesh | null) => void;
 }
 
-function Model({ url, videoTexture }: ModelProps) {
+function Model({ url, videoTexture, onScreenMeshFound }: ModelProps) {
   const { scene: originalScene } = useGLTF(url);
   const bounds = useBounds();
   const crtMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
   const videoTextureRef = useRef<THREE.VideoTexture | null>(videoTexture);
+  const screenMeshRef = useRef<THREE.Mesh | null>(null);
 
-  // Keep ref in sync with prop
   useEffect(() => {
     videoTextureRef.current = videoTexture;
   }, [videoTexture]);
 
-  // Clone scene to avoid caching issues
   const scene = useMemo(() => originalScene.clone(true), [originalScene]);
 
   useEffect(() => {
     bounds.refresh().fit();
   }, [bounds, scene]);
 
-  // Apply CRT shader to screen mesh only
+  // Find screen mesh regardless of videoTexture state (needed for YouTube CSS3D mode)
+  // When no videoTexture (YouTube mode), apply white material to screen for better visibility
+  useEffect(() => {
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const materialName = ((child.material as THREE.Material)?.name || "").toLowerCase();
+        if (materialName === "screen") {
+          console.log("Screen mesh found:", child.name);
+          screenMeshRef.current = child;
+          
+          // If no video texture (YouTube mode), make screen white
+          if (!videoTexture) {
+            const whiteMaterial = new THREE.MeshBasicMaterial({ 
+              color: 0x000000,
+              side: THREE.DoubleSide 
+            });
+            child.material = whiteMaterial;
+          }
+          
+          if (onScreenMeshFound) {
+            onScreenMeshFound(child);
+          }
+        }
+      }
+    });
+  }, [scene, onScreenMeshFound, videoTexture]);
+
   useEffect(() => {
     if (!videoTexture) return;
 
     console.log("=== Applying CRT shader to model ===");
 
-    // Log ALL meshes
     const allMeshes: string[] = [];
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -197,7 +404,6 @@ function Model({ url, videoTexture }: ModelProps) {
 
     crtMaterialRef.current = crtMaterial;
 
-    // Find and apply to screen mesh only
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         const materialName = ((child.material as THREE.Material)?.name || "").toLowerCase();
@@ -205,6 +411,10 @@ function Model({ url, videoTexture }: ModelProps) {
         if (materialName === "screen") {
           console.log(">>> SCREEN FOUND, applying CRT shader:", child.name);
           child.material = crtMaterial;
+          screenMeshRef.current = child;
+          if (onScreenMeshFound) {
+            onScreenMeshFound(child);
+          }
         }
       }
     });
@@ -214,7 +424,6 @@ function Model({ url, videoTexture }: ModelProps) {
     };
   }, [scene, videoTexture]);
 
-  // Update time uniform and texture every frame
   useFrame(({ clock }) => {
     const currentTexture = videoTextureRef.current;
     if (currentTexture) {
@@ -222,7 +431,6 @@ function Model({ url, videoTexture }: ModelProps) {
     }
     if (crtMaterialRef.current) {
       crtMaterialRef.current.uniforms.time.value = clock.getElapsedTime();
-      // Ensure texture uniform is always in sync with the current texture
       if (currentTexture && crtMaterialRef.current.uniforms.tDiffuse.value !== currentTexture) {
         console.log('Switching texture in useFrame');
         crtMaterialRef.current.uniforms.tDiffuse.value = currentTexture;
@@ -236,6 +444,12 @@ function Model({ url, videoTexture }: ModelProps) {
 interface CRTModelViewerProps {
   modelPath?: string;
   className?: string;
+  /**
+   * Video URL - supports:
+   * - Local video files (e.g., "/movie.webm")
+   * - YouTube URLs (e.g., "https://www.youtube.com/watch?v=VIDEO_ID" or "https://youtu.be/VIDEO_ID")
+   *   Note: YouTube videos use CSS3D iframe (no CRT shaders applied)
+   */
   videoUrl?: string;
 }
 
@@ -258,10 +472,31 @@ export function CRTModelViewer({
   const [isCaptureMuted, setIsCaptureMuted] = useState(false);
   const captureStreamRef = useRef<MediaStream | null>(null);
   const captureVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [screenMesh, setScreenMesh] = useState<THREE.Mesh | null>(null);
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+  const [videoSourceType, setVideoSourceType] = useState<VideoSourceTypeValue>(VideoSourceType.LocalVideo);
 
-  // Create video element and texture
   useEffect(() => {
-    if (!videoUrl) return;
+    if (!videoUrl) {
+      setVideoSourceType(VideoSourceType.LocalVideo);
+      setYoutubeVideoId(null);
+      return;
+    }
+
+    if (isYouTubeUrl(videoUrl)) {
+      const videoId = extractYouTubeVideoId(videoUrl);
+      setYoutubeVideoId(videoId);
+      setVideoSourceType(VideoSourceType.YouTubeEmbed);
+      return;
+    }
+
+    setYoutubeVideoId(null);
+    setVideoSourceType(VideoSourceType.LocalVideo);
+  }, [videoUrl]);
+
+  useEffect(() => {
+    // Skip video element creation for YouTube URLs
+    if (!videoUrl || videoSourceType === VideoSourceType.YouTubeEmbed) return;
 
     const video = document.createElement('video');
     video.src = videoUrl;
@@ -277,7 +512,6 @@ export function CRTModelViewer({
       setDuration(video.duration);
       console.log("Video loaded, duration:", video.duration, "dimensions:", video.videoWidth, "x", video.videoHeight);
 
-      // Create texture after video is loaded
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
@@ -286,7 +520,6 @@ export function CRTModelViewer({
       texture.colorSpace = THREE.SRGBColorSpace;
       setVideoTexture(texture);
 
-      // Auto-play to ensure texture has content
       video.play().then(() => {
         console.log("Video auto-started for texture");
       }).catch((e) => {
@@ -306,7 +539,6 @@ export function CRTModelViewer({
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
 
-    // Start loading
     video.load();
 
     return () => {
@@ -319,7 +551,6 @@ export function CRTModelViewer({
       if (videoTexture) {
         videoTexture.dispose();
       }
-      // Stop capture stream on unmount
       if (captureStreamRef.current) {
         captureStreamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -345,7 +576,6 @@ export function CRTModelViewer({
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  // Auto-hide controls after inactivity
   const resetHideTimer = useCallback(() => {
     if (hideTimeoutRef.current) {
       clearTimeout(hideTimeoutRef.current);
@@ -356,7 +586,6 @@ export function CRTModelViewer({
     }, 2500);
   }, []);
 
-  // Handle mouse movement for showing controls
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -392,7 +621,6 @@ export function CRTModelViewer({
 
   const togglePlay = useCallback(() => {
     if (isCapturing) {
-      // During capture, play/pause the capture video element
       if (!captureVideoRef.current) return;
       if (captureVideoRef.current.paused) {
         captureVideoRef.current.play();
@@ -402,7 +630,6 @@ export function CRTModelViewer({
         setIsPlaying(false);
       }
     } else {
-      // Normal video mode
       if (!videoRef.current) return;
       if (videoRef.current.paused) {
         videoRef.current.play();
@@ -436,13 +663,11 @@ export function CRTModelViewer({
   }, []);
 
   const stopCapture = useCallback(() => {
-    // Stop all tracks in the capture stream
     if (captureStreamRef.current) {
       captureStreamRef.current.getTracks().forEach(track => track.stop());
       captureStreamRef.current = null;
     }
 
-    // Clean up capture video element
     if (captureVideoRef.current) {
       captureVideoRef.current.srcObject = null;
       captureVideoRef.current = null;
@@ -450,7 +675,6 @@ export function CRTModelViewer({
 
     setIsCapturing(false);
 
-    // Restore original video texture if videoUrl exists
     if (videoRef.current && videoUrl) {
       const texture = new THREE.VideoTexture(videoRef.current);
       texture.minFilter = THREE.LinearFilter;
@@ -460,7 +684,6 @@ export function CRTModelViewer({
       texture.colorSpace = THREE.SRGBColorSpace;
       setVideoTexture(texture);
 
-      // Resume video playback
       videoRef.current.play().catch(() => {});
     }
   }, [videoUrl]);
@@ -474,14 +697,12 @@ export function CRTModelViewer({
         audio: true,
       });
 
-      // Create video element for capture stream
       const captureVideo = document.createElement('video');
       captureVideo.srcObject = stream;
-      captureVideo.muted = isCaptureMuted; // Respect mute state
+      captureVideo.muted = isCaptureMuted;
       captureVideo.playsInline = true;
       captureVideo.autoplay = true;
 
-      // Handle stream ending (user clicks browser's stop sharing button)
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.addEventListener('ended', () => {
@@ -489,7 +710,6 @@ export function CRTModelViewer({
         });
       }
 
-      // Wait for video to be ready before creating texture
       await new Promise<void>((resolve) => {
         captureVideo.onloadedmetadata = () => {
           console.log('Capture video ready:', captureVideo.videoWidth, 'x', captureVideo.videoHeight);
@@ -551,20 +771,31 @@ export function CRTModelViewer({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Ref for the 3D viewer container (for YouTube overlay positioning)
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
+
   return (
     <div ref={containerRef} className={`${className} flex flex-col bg-black`} style={{ width: '100%', height: '100%' }}>
       {/* 3D Viewer */}
-      <div className="relative flex-1 min-h-0">
+      <div ref={viewerContainerRef} className="relative flex-1 min-h-0" style={{ overflow: 'hidden' }}>
         <Canvas
           camera={{ position: [0, 0, 10], fov: 45 }}
-          style={{ width: '100%', height: '100%' }}
+          style={{ 
+            width: '100%', 
+            height: '100%',
+            pointerEvents: videoSourceType === VideoSourceType.YouTubeEmbed ? 'none' : 'auto'
+          }}
         >
           <Suspense fallback={null}>
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} intensity={1} />
             <directionalLight position={[-5, 5, 5]} intensity={0.5} />
             <Bounds fit clip observe margin={1.2}>
-              <Model url={modelPath} videoTexture={videoTexture} />
+              <Model 
+                url={modelPath} 
+                videoTexture={videoSourceType === VideoSourceType.YouTubeEmbed ? null : videoTexture}
+                onScreenMeshFound={setScreenMesh}
+              />
             </Bounds>
             <OrbitControls
               enableZoom={true}
@@ -574,6 +805,15 @@ export function CRTModelViewer({
               makeDefault
             />
             <Environment preset="city" />
+            {/* CSS3D YouTube - renders iframe ON the TV screen in 3D space */}
+            {videoSourceType === VideoSourceType.YouTubeEmbed && youtubeVideoId && (
+              <CSS3DYouTube
+                screenMesh={screenMesh}
+                youtubeVideoId={youtubeVideoId}
+                isMuted={isMuted}
+                containerRef={viewerContainerRef}
+              />
+            )}
           </Suspense>
         </Canvas>
 
@@ -599,8 +839,8 @@ export function CRTModelViewer({
               : ''
           }`}
         >
-          {/* Timeline - hidden during capture */}
-          {!isCapturing && (
+          {/* Timeline - hidden during capture and YouTube mode (YouTube controls are in iframe) */}
+          {!isCapturing && videoSourceType !== VideoSourceType.YouTubeEmbed && (
             <div className="flex items-center gap-3 mb-2">
               <span className="text-white/70 text-sm font-mono w-12">{formatTime(currentTime)}</span>
               <input
@@ -623,8 +863,8 @@ export function CRTModelViewer({
 
           {/* Control Buttons */}
           <div className="flex items-center justify-center gap-2">
-            {/* Skip buttons - hidden during capture */}
-            {!isCapturing && (
+            {/* Skip buttons - hidden during capture and YouTube mode */}
+            {!isCapturing && videoSourceType !== VideoSourceType.YouTubeEmbed && (
               <button
                 onClick={skipBackward}
                 className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
@@ -646,7 +886,7 @@ export function CRTModelViewer({
               )}
             </button>
 
-            {!isCapturing && (
+            {!isCapturing && videoSourceType !== VideoSourceType.YouTubeEmbed && (
               <button
                 onClick={skipForward}
                 className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"

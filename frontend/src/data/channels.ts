@@ -61,6 +61,16 @@ export const channels: Channel[] = [
     category: 'screen-capture',
     mediaType: 'screen-capture',
   },
+  {
+    id: 'youtube-demo',
+    name: 'YouTube Demo Channel',
+    description: 'Watch YouTube videos on the retro TV (CSS3D iframe mode)',
+    image: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=300&fit=crop',
+    category: 'music',
+    mediaType: 'video',
+    videoUrl: 'https://www.youtube.com/watch?v=x9hVTpyaXq8',
+    showtimes: ['All Day'],
+  },
 ];
 
 export function getChannelById(id: string): Channel | undefined {
