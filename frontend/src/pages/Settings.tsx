@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useTheme } from "@/components/theme-provider";
 import { useSettingsStore, type VideoQuality, type Theme as SettingsTheme } from "@/stores/settings";
+import { useSettings } from "@/contexts/SettingsContext";
 import {
   Settings as SettingsIcon,
   User,
@@ -28,6 +29,7 @@ import {
   Laptop,
   LogOut,
   ExternalLink,
+  Bug,
 } from "lucide-react";
 
 function PreferencesTab() {
@@ -41,6 +43,7 @@ function PreferencesTab() {
     setSoundEffects,
     setTheme: setStoreTheme,
   } = useSettingsStore();
+  const { debugMode, setDebugMode } = useSettings();
 
   const handleThemeChange = (value: string) => {
     const newTheme = value as SettingsTheme;
@@ -174,6 +177,34 @@ function PreferencesTab() {
               id="sound-effects"
               checked={soundEffects}
               onCheckedChange={setSoundEffects}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Developer Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bug className="w-5 h-5" />
+            Developer
+          </CardTitle>
+          <CardDescription>
+            Tools for testing and debugging
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="debug-mode">Debug Mode</Label>
+              <p className="text-sm text-muted-foreground">
+                Enable debug tools in the navigation bar
+              </p>
+            </div>
+            <Switch
+              id="debug-mode"
+              checked={debugMode}
+              onCheckedChange={setDebugMode}
             />
           </div>
         </CardContent>

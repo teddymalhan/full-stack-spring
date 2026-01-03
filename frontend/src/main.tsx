@@ -6,6 +6,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { initializeSupabase } from "./supabaseClient";
 import { ThemeProvider } from "./components/theme-provider";
+import { SettingsProvider } from "./contexts/SettingsContext";
 
 const queryClient = new QueryClient();
 
@@ -57,7 +58,9 @@ function ConfiguredApp() {
     <QueryClientProvider client={queryClient}>
       <ClerkProvider publishableKey={config.clerkPublishableKey}>
         <ThemeProvider defaultTheme="dark" storageKey="app-theme">
-          <App />
+          <SettingsProvider>
+            <App />
+          </SettingsProvider>
         </ThemeProvider>
       </ClerkProvider>
     </QueryClientProvider>

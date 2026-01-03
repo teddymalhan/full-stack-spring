@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Bug } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
+import { DebugModal } from "@/components/DebugModal";
+import { useSettings } from "@/contexts/SettingsContext";
 
 const navItems = [
   { name: "Home", href: "/", protected: true },
@@ -18,6 +20,8 @@ export function Navigation() {
   const prefersReducedMotion = useReducedMotion();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isDebugModalOpen, setIsDebugModalOpen] = useState(false);
+  const { debugMode } = useSettings();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -117,6 +121,17 @@ export function Navigation() {
 
             {/* Right side - Theme Toggle & Auth */}
             <div className="flex items-center gap-3">
+              {debugMode && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                  onClick={() => setIsDebugModalOpen(true)}
+                >
+                  <Bug className="w-4 h-4" />
+                  Debug
+                </Button>
+              )}
               <AnimatedThemeToggler className="p-2 rounded-full hover:bg-accent/50 transition-colors" />
               <SignedOut>
                 <SignInButton mode="modal">
@@ -159,6 +174,16 @@ export function Navigation() {
           </Link>
 
           <div className="flex items-center gap-2">
+            {debugMode && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300"
+                onClick={() => setIsDebugModalOpen(true)}
+              >
+                <Bug className="w-4 h-4" />
+              </Button>
+            )}
             <AnimatedThemeToggler className="p-2 rounded-full hover:bg-accent/50 transition-colors" />
             <button
               onClick={toggleMobileMenu}
@@ -255,6 +280,9 @@ export function Navigation() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Debug Modal */}
+      <DebugModal open={isDebugModalOpen} onOpenChange={setIsDebugModalOpen} />
     </>
   );
 }
