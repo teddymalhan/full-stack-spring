@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/protected")
 public class SupabaseExampleController {
 
     private final SupabaseService supabaseService;
@@ -18,7 +18,7 @@ public class SupabaseExampleController {
 
     /**
      * Example: Query all records from a table
-     * GET /api/supabase/query/{tableName}
+     * GET /api/protected/supabase/query/{tableName}
      */
     @GetMapping("/supabase/query/{tableName}")
     public String queryTable(@PathVariable String tableName) throws IOException {
@@ -27,7 +27,7 @@ public class SupabaseExampleController {
 
     /**
      * Example: Query with filters
-     * GET /api/supabase/query/{tableName}?id=123
+     * GET /api/protected/supabase/query/{tableName}?id=123
      */
     @GetMapping("/supabase/query/{tableName}/filtered")
     public String queryTableFiltered(
@@ -40,7 +40,7 @@ public class SupabaseExampleController {
 
     /**
      * Example: Insert data into a table
-     * POST /api/supabase/insert/{tableName}
+     * POST /api/protected/supabase/insert/{tableName}
      * Body: JSON object to insert
      */
     @PostMapping("/supabase/insert/{tableName}")
@@ -53,7 +53,7 @@ public class SupabaseExampleController {
 
     /**
      * Example: Update data in a table
-     * PATCH /api/supabase/update/{tableName}?id=eq.123
+     * PATCH /api/protected/supabase/update/{tableName}?id=eq.123
      * Body: JSON object with updated fields
      */
     @PatchMapping("/supabase/update/{tableName}")
@@ -67,7 +67,7 @@ public class SupabaseExampleController {
 
     /**
      * Example: Delete from a table
-     * DELETE /api/supabase/delete/{tableName}?id=eq.123
+     * DELETE /api/protected/supabase/delete/{tableName}?id=eq.123
      */
     @DeleteMapping("/supabase/delete/{tableName}")
     public void deleteFromTable(
@@ -79,7 +79,7 @@ public class SupabaseExampleController {
 
     /**
      * Example: Get public URL for a file in Supabase Storage
-     * GET /api/supabase/storage/{bucket}/{path}
+     * GET /api/protected/supabase/storage/url/{bucket}/{path}
      */
     @GetMapping("/supabase/storage/url/{bucket}/{path}")
     public Map<String, String> getFileUrl(
