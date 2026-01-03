@@ -55,9 +55,10 @@ function getYouTubeEmbedUrl(videoId: string, autoplay: boolean = true, mute: boo
  * Uses CSS3DRenderer to place a DOM iframe in 3D space, synced with the WebGL camera.
  * The iframe is positioned and scaled to match the TV screen mesh exactly.
  * 
- * LIMITATIONS (browser security / YouTube ToS):
- * - Cannot apply CRT shaders (no pixel access to iframe)
- * - For CRT effects on YouTube, users must use screen capture mode
+ * CRT EFFECTS:
+ * - Applies CSS-based CRT overlay effects (scanlines, vignette, phosphor pattern, flicker)
+ * - Overlay is semi-transparent and positioned on top of the YouTube iframe
+ * - Pointer events pass through overlay to allow iframe interaction
  */
 interface CSS3DYouTubeProps {
   screenMesh: THREE.Mesh | null;
@@ -74,6 +75,7 @@ function CSS3DYouTube({ screenMesh, youtubeVideoId, isMuted, containerRef }: CSS
   const screenScaleXRef = useRef<number>(0.05);
   const screenScaleYRef = useRef<number>(0.05);
   const initializedRef = useRef(false);
+  const flickerStyleRef = useRef<HTMLStyleElement | null>(null);
 
   // Initialize CSS3D renderer (only once)
   useEffect(() => {
@@ -81,7 +83,7 @@ function CSS3DYouTube({ screenMesh, youtubeVideoId, isMuted, containerRef }: CSS
     if (initializedRef.current) return; // Prevent multiple initializations
     
     initializedRef.current = true;
-    console.log("Creating CSS3D renderer for YouTube");
+    console.log("Creating CSS3D renderer for YouTube with CRT overlay");
 
     // Create CSS3D renderer
     const cssRenderer = new CSS3DRenderer();
@@ -95,19 +97,366 @@ function CSS3DYouTube({ screenMesh, youtubeVideoId, isMuted, containerRef }: CSS
     // Create scene
     const cssScene = new THREE.Scene();
 
-    // Create iframe (640x480 pixels)
+    // Create wrapper div that contains both iframe and CRT overlay
+    const wrapper = document.createElement("div");
+    wrapper.style.width = "640px";
+    wrapper.style.height = "540px";
+    wrapper.style.position = "relative";
+    wrapper.style.overflow = "hidden";
+    wrapper.style.borderRadius = "8px"; // CRT screens have rounded corners
+    wrapper.style.background = "#000";
+
+    // Create iframe container with slight barrel distortion simulation
+    const iframeContainer = document.createElement("div");
+    iframeContainer.style.width = "100%";
+    iframeContainer.style.height = "100%";
+    iframeContainer.style.position = "relative";
+    iframeContainer.style.overflow = "hidden";
+    // Subtle warm color tint typical of CRT phosphors
+    iframeContainer.style.filter = "saturate(1.1) contrast(1.02) brightness(1.05)";
+
+    // Create iframe
     const iframe = document.createElement("iframe");
     iframe.src = getYouTubeEmbedUrl(youtubeVideoId, true, isMuted);
-    iframe.style.width = "640px";
-    iframe.style.height = "540px"; // Taller to fill CRT screen better
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
     iframe.style.border = "0";
     iframe.style.pointerEvents = "auto";
     iframe.style.backgroundColor = "#000";
     iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
     iframe.allowFullscreen = true;
 
+    // Add comprehensive CRT animation styles
+    const flickerStyle = document.createElement("style");
+    flickerStyle.textContent = `
+      /* Subtle brightness flicker - simulates CRT refresh rate variations */
+      @keyframes crtFlicker {
+        0% { opacity: 1; }
+        5% { opacity: 0.98; }
+        10% { opacity: 1; }
+        15% { opacity: 0.99; }
+        20% { opacity: 1; }
+        50% { opacity: 0.985; }
+        80% { opacity: 1; }
+        85% { opacity: 0.97; }
+        90% { opacity: 1; }
+        100% { opacity: 0.99; }
+      }
+      
+      /* Rolling horizontal interference bar - classic CRT artifact */
+      @keyframes crtRollingBar {
+        0% { transform: translateY(-100%); }
+        100% { transform: translateY(540px); }
+      }
+      
+      /* Subtle horizontal jitter - simulates sync issues */
+      @keyframes crtJitter {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(0.3px); }
+        50% { transform: translateX(-0.2px); }
+        75% { transform: translateX(0.1px); }
+      }
+      
+      /* Animated noise grain */
+      @keyframes crtNoise {
+        0%, 100% { background-position: 0 0; }
+        10% { background-position: -5% -10%; }
+        20% { background-position: -15% 5%; }
+        30% { background-position: 7% -25%; }
+        40% { background-position: -5% 25%; }
+        50% { background-position: -15% 10%; }
+        60% { background-position: 15% 0%; }
+        70% { background-position: 0% 15%; }
+        80% { background-position: 3% 35%; }
+        90% { background-position: -10% 10%; }
+      }
+      
+      /* Interlace shimmer effect */
+      @keyframes crtInterlace {
+        0% { opacity: 0.03; }
+        50% { opacity: 0.05; }
+        100% { opacity: 0.03; }
+      }
+      
+      /* Screen glow pulse */
+      @keyframes crtGlow {
+        0%, 100% { box-shadow: inset 0 0 80px rgba(100, 200, 255, 0.03); }
+        50% { box-shadow: inset 0 0 100px rgba(100, 200, 255, 0.05); }
+      }
+    `;
+    document.head.appendChild(flickerStyle);
+    flickerStyleRef.current = flickerStyle;
+
+    // === Layer 1: Main scanlines (horizontal lines characteristic of CRT) ===
+    const scanlines = document.createElement("div");
+    scanlines.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 1px,
+        rgba(0, 0, 0, 0.12) 1px,
+        rgba(0, 0, 0, 0.12) 2px
+      );
+      animation: crtFlicker 0.1s infinite;
+    `;
+
+    // === Layer 2: RGB Aperture Grille / Shadow Mask (vertical phosphor stripes) ===
+    const phosphorMask = document.createElement("div");
+    phosphorMask.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 11;
+      opacity: 0.08;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.5) 0px,
+        rgba(255, 0, 0, 0.5) 1px,
+        rgba(0, 255, 0, 0.5) 1px,
+        rgba(0, 255, 0, 0.5) 2px,
+        rgba(0, 0, 255, 0.5) 2px,
+        rgba(0, 0, 255, 0.5) 3px
+      );
+    `;
+
+    // === Layer 3: Fine horizontal phosphor rows (interlaced look) ===
+    const interlacePattern = document.createElement("div");
+    interlacePattern.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 12;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.02) 0px,
+        transparent 1px,
+        transparent 2px
+      );
+      animation: crtInterlace 0.033s infinite;
+    `;
+
+    // === Layer 4: Vignette (darker edges - natural CRT characteristic) ===
+    const vignette = document.createElement("div");
+    vignette.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 13;
+      background: radial-gradient(
+        ellipse 85% 75% at 50% 50%,
+        transparent 0%,
+        transparent 60%,
+        rgba(0, 0, 0, 0.08) 75%,
+        rgba(0, 0, 0, 0.2) 90%,
+        rgba(0, 0, 0, 0.4) 100%
+      );
+    `;
+
+    // === Layer 5: Corner darkening (CRT screens are darker at corners) ===
+    const cornerDarkening = document.createElement("div");
+    cornerDarkening.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 14;
+      box-shadow: 
+        inset 40px 40px 60px rgba(0, 0, 0, 0.15),
+        inset -40px -40px 60px rgba(0, 0, 0, 0.15),
+        inset 40px -40px 60px rgba(0, 0, 0, 0.15),
+        inset -40px 40px 60px rgba(0, 0, 0, 0.15);
+    `;
+
+    // === Layer 6: Screen glow (phosphor bloom effect) ===
+    const screenGlow = document.createElement("div");
+    screenGlow.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 15;
+      animation: crtGlow 2s ease-in-out infinite;
+    `;
+
+    // === Layer 7: Rolling interference bar (classic CRT artifact) ===
+    const rollingBar = document.createElement("div");
+    rollingBar.style.cssText = `
+      position: absolute;
+      top: -20px;
+      left: 0;
+      width: 100%;
+      height: 20px;
+      pointer-events: none;
+      z-index: 16;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(255, 255, 255, 0.03) 30%,
+        rgba(255, 255, 255, 0.05) 50%,
+        rgba(255, 255, 255, 0.03) 70%,
+        transparent 100%
+      );
+      animation: crtRollingBar 12s linear infinite;
+      opacity: 0.6;
+    `;
+
+    // === Layer 8: Static noise grain ===
+    const noiseOverlay = document.createElement("div");
+    noiseOverlay.style.cssText = `
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      pointer-events: none;
+      z-index: 17;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      animation: crtNoise 0.5s steps(10) infinite;
+    `;
+
+    // === Layer 9: Chromatic aberration at edges (color fringing) ===
+    const chromaticLeft = document.createElement("div");
+    chromaticLeft.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 30px;
+      height: 100%;
+      pointer-events: none;
+      z-index: 18;
+      background: linear-gradient(
+        to right,
+        rgba(255, 0, 0, 0.03) 0%,
+        transparent 100%
+      );
+    `;
+
+    const chromaticRight = document.createElement("div");
+    chromaticRight.style.cssText = `
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 30px;
+      height: 100%;
+      pointer-events: none;
+      z-index: 18;
+      background: linear-gradient(
+        to left,
+        rgba(0, 100, 255, 0.03) 0%,
+        transparent 100%
+      );
+    `;
+
+    // === Layer 10: Glass reflection highlight ===
+    const glassReflection = document.createElement("div");
+    glassReflection.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 19;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0.03) 10%,
+        transparent 30%,
+        transparent 70%,
+        rgba(255, 255, 255, 0.01) 100%
+      );
+      border-radius: 8px;
+    `;
+
+    // === Layer 11: Screen bezel shadow (inner edge) ===
+    const bezelShadow = document.createElement("div");
+    bezelShadow.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 20;
+      box-shadow: 
+        inset 0 0 6px 1px rgba(0, 0, 0, 0.25),
+        inset 0 0 2px 1px rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+    `;
+
+    // === Layer 12: Subtle color tint (warm phosphor glow) ===
+    const colorTint = document.createElement("div");
+    colorTint.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 21;
+      background: radial-gradient(
+        ellipse at center,
+        rgba(255, 248, 230, 0.02) 0%,
+        transparent 70%
+      );
+    `;
+
+    // === Layer 13: Horizontal jitter container (simulates sync wobble) ===
+    const jitterContainer = document.createElement("div");
+    jitterContainer.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9;
+      animation: crtJitter 0.05s infinite;
+    `;
+
+    // Assemble the iframe container
+    iframeContainer.appendChild(iframe);
+
+    // Assemble the wrapper with all CRT effect layers
+    wrapper.appendChild(iframeContainer);
+    wrapper.appendChild(jitterContainer);
+    wrapper.appendChild(scanlines);
+    wrapper.appendChild(phosphorMask);
+    wrapper.appendChild(interlacePattern);
+    wrapper.appendChild(vignette);
+    wrapper.appendChild(cornerDarkening);
+    wrapper.appendChild(screenGlow);
+    wrapper.appendChild(rollingBar);
+    wrapper.appendChild(noiseOverlay);
+    wrapper.appendChild(chromaticLeft);
+    wrapper.appendChild(chromaticRight);
+    wrapper.appendChild(glassReflection);
+    wrapper.appendChild(bezelShadow);
+    wrapper.appendChild(colorTint);
+
     // Wrap in CSS3DObject
-    const cssObject = new CSS3DObject(iframe);
+    const cssObject = new CSS3DObject(wrapper);
     
     // Default scale based on typical screen size (~37 world units after Bounds)
     // Scale = worldUnits / pixels = 37 * 0.85 / 640 ≈ 0.05
@@ -131,6 +480,9 @@ function CSS3DYouTube({ screenMesh, youtubeVideoId, isMuted, containerRef }: CSS
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      if (flickerStyleRef.current && document.head.contains(flickerStyleRef.current)) {
+        document.head.removeChild(flickerStyleRef.current);
+      }
       initializedRef.current = false;
       if (cssSceneRef.current && cssObjectRef.current) {
         cssSceneRef.current.remove(cssObjectRef.current);
@@ -143,6 +495,7 @@ function CSS3DYouTube({ screenMesh, youtubeVideoId, isMuted, containerRef }: CSS
       cssRendererRef.current = null;
       cssSceneRef.current = null;
       cssObjectRef.current = null;
+      flickerStyleRef.current = null;
     };
   }, [youtubeVideoId, containerRef, gl, isMuted, size.width, size.height]);
 
@@ -448,7 +801,7 @@ interface CRTModelViewerProps {
    * Video URL - supports:
    * - Local video files (e.g., "/movie.webm")
    * - YouTube URLs (e.g., "https://www.youtube.com/watch?v=VIDEO_ID" or "https://youtu.be/VIDEO_ID")
-   *   Note: YouTube videos use CSS3D iframe (no CRT shaders applied)
+   *   Note: YouTube videos use CSS3D iframe with CSS-based CRT overlay effects
    */
   videoUrl?: string;
 }
