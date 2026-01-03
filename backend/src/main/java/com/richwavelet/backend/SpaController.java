@@ -10,11 +10,11 @@ public class SpaController {
 
     /**
      * Forward SPA routes to index.html.
-     * Pattern excludes paths with dots (file extensions) and paths starting with 'api', 'assets', or 'models'.
+     * Pattern excludes paths with dots (file extensions) and paths starting with 'api', 'assets', 'models', 'docs', or 'error'.
      */
     @RequestMapping(value = {
-            "/{path:^(?!api|assets|models|error)[^.]+$}",
-            "/{path:^(?!api|assets|models|error)[^.]+}/**"
+            "/{path:^(?!api|assets|models|docs|error)[^.]+$}",
+            "/{path:^(?!api|assets|models|docs|error)[^.]+}/**"
     })
     public String forward() {
         return "forward:/index.html";

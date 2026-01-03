@@ -110,6 +110,8 @@ function LandingPage() {
           &copy; {new Date().getFullYear()} RetroWatch. All rights reserved.
         </p>
         <div className="mt-2 flex justify-center gap-4 text-xs text-muted-foreground">
+          <a href="/docs" className="hover:text-foreground transition-colors">API Docs</a>
+          <span>|</span>
           <a href="#" className="hover:text-foreground transition-colors">Contact Us</a>
           <span>|</span>
           <a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a>

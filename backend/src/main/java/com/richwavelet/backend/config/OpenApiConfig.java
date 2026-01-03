@@ -15,9 +15,9 @@ public class OpenApiConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
             .info(new Info()
-                .title("Full Stack Spring API")
+                .title("RetroWatch")
                 .version("1.0.0")
-                .description("API documentation for Full Stack Spring application"))
+                .description("API documentation for RetroWatch backend"))
             .components(new Components()
                 .addSecuritySchemes("bearer-jwt", new SecurityScheme()
                     .type(SecurityScheme.Type.HTTP)
