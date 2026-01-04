@@ -18,7 +18,6 @@ public class SecurityConfig {
     @Bean
     public HttpFirewall allowUrlEncodedPercentHttpFirewall() {
         StrictHttpFirewall firewall = new StrictHttpFirewall();
-        // Allow double-encoded characters for Mintlify docs proxy
         firewall.setAllowUrlEncodedPercent(true);
         firewall.setAllowUrlEncodedSlash(true);
         firewall.setAllowSemicolon(true);

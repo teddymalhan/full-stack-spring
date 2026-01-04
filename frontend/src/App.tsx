@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import LandingPage from "./LandingPage";
-import ChannelGuide from "./pages/ChannelGuide";
+import Library from "./pages/Library";
 import Player from "./pages/Player";
 import Settings from "./pages/Settings";
 import "./App.css";
@@ -23,15 +23,17 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
-          path="/channels"
+          path="/library"
           element={
             <ProtectedRoute>
-              <ChannelGuide />
+              <Library />
             </ProtectedRoute>
           }
         />
+        {/* Redirect old /channels route to /library */}
+        <Route path="/channels" element={<Navigate to="/library" replace />} />
         <Route
-          path="/player/:channelId"
+          path="/player"
           element={
             <ProtectedRoute>
               <Player />

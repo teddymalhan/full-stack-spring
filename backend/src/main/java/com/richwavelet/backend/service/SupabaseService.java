@@ -136,9 +136,56 @@ public class SupabaseService {
     }
 
     /**
-     * Get public URL for a file in Supabase Storage
+     * Get public URL for a file in Supabase Storage (only works for public buckets)
      */
     public String getPublicUrl(String bucket, String path) {
         return supabaseConfig.getSupabaseUrl() + "/storage/v1/object/public/" + bucket + "/" + path;
+    }
+
+    /**
+     * Create a signed URL for private file access
+     * @param bucket The storage bucket name
+     * @param path The file path within the bucket
+     * @param expiresIn Expiration time in seconds (e.g., 3600 for 1 hour)
+     * @return The signed URL for temporary access
+     */
+    public String createSignedUrl(String bucket, String path, int expiresIn) throws IOException {
+        var jsonData = objectMapper.writeValueAsString(Map.of("expiresIn", expiresIn));
+
+        var requestBody = RequestBody.create(
+                jsonData,
+                MediaType.parse("application/json")
+        );
+
+        var request = new Request.Builder()
+                .url(supabaseConfig.getSupabaseUrl() + "/storage/v1/object/sign/" + bucket + "/" + path)
+                .post(requestBody)
+                .build();
+
+        try (var response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to create signed URL: " + response + ": " + response.body().string());
+            }
+            var responseBody = response.body().string();
+            var responseMap = objectMapper.readValue(responseBody, Map.class);
+            var signedUrl = (String) responseMap.get("signedURL");
+            return supabaseConfig.getSupabaseUrl() + "/storage/v1" + signedUrl;
+        }
+    }
+
+    /**
+     * Delete a file from Supabase Storage
+     */
+    public void deleteFile(String bucket, String path) throws IOException {
+        var request = new Request.Builder()
+                .url(supabaseConfig.getSupabaseUrl() + "/storage/v1/object/" + bucket + "/" + path)
+                .delete()
+                .build();
+
+        try (var response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to delete file: " + response + ": " + response.body().string());
+            }
+        }
     }
 }

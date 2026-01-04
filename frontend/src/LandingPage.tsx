@@ -70,9 +70,9 @@ function LandingPage() {
               <Button
                 size="lg"
                 className="text-lg px-8 py-4"
-                onClick={() => navigate("/channels")}
+                onClick={() => navigate("/library")}
               >
-                Go to Channel Guide
+                Go to Library
               </Button>
             </SignedIn>
           </motion.div>

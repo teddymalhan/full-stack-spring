@@ -11,7 +11,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 
 const navItems = [
   { name: "Home", href: "/", protected: true },
-  { name: "Channel Guide", href: "/channels", protected: true },
+  { name: "Library", href: "/library", protected: true },
   { name: "Settings", href: "/settings", protected: true },
 ];
 

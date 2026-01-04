@@ -22,8 +22,8 @@ public class SupabaseConfig {
         return new OkHttpClient.Builder()
                 .addInterceptor(chain -> {
                     var request = chain.request().newBuilder()
-                            .addHeader("apikey", supabaseAnonKey)
-                            .addHeader("Authorization", "Bearer " + supabaseAnonKey)
+                            .addHeader("apikey", supabaseServiceKey)
+                            .addHeader("Authorization", "Bearer " + supabaseServiceKey)
                             .build();
                     return chain.proceed(request);
                 })

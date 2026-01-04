@@ -1,61 +1,56 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Tv, ScreenShare } from "lucide-react";
+import { ArrowLeft, Youtube, Film } from "lucide-react";
 import { Navigation } from "@/components/ui/navigation";
 import { CRTModelViewer } from "@/components/CRTModelViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getChannelById, type Channel } from "@/data/channels";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useAddToHistory } from "@/hooks/useLibraryApi";
+import { extractYoutubeVideoId, getYoutubeThumbnailUrl } from "@/stores/library";
 
-function ChannelNotFound() {
+interface PlayerState {
+  youtubeUrl: string;
+  adIds?: string[];
+  videoTitle?: string;
+  thumbnailUrl?: string;
+}
+
+function NoVideoSelected() {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <Navigation />
       <div className="text-center">
-        <Tv className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Channel Not Found</h1>
+        <Youtube className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+        <h1 className="text-2xl font-bold mb-2">No Video Selected</h1>
         <p className="text-muted-foreground mb-6">
-          The channel you're looking for doesn't exist.
+          Go to the Library to select a YouTube video to watch.
         </p>
-        <Button onClick={() => navigate('/channels')}>
-          Back to Channel Guide
+        <Button onClick={() => navigate('/library')}>
+          Go to Library
         </Button>
       </div>
     </div>
   );
 }
 
-function ChannelInfoOverlay({ channel }: { channel: Channel }) {
+interface VideoInfoOverlayProps {
+  title?: string;
+  adCount: number;
+}
+
+function VideoInfoOverlay({ title, adCount }: VideoInfoOverlayProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Auto-hide after 5 seconds
     const timer = setTimeout(() => {
       setIsVisible(false);
     }, 5000);
 
     return () => clearTimeout(timer);
   }, []);
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'sci-fi':
-        return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'comedy':
-        return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'music':
-        return 'bg-pink-500/20 text-pink-300 border-pink-500/30';
-      case 'game-shows':
-        return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
-      case 'screen-capture':
-        return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30';
-      default:
-        return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-    }
-  };
 
   return (
     <motion.div
@@ -70,18 +65,16 @@ function ChannelInfoOverlay({ channel }: { channel: Channel }) {
         className="bg-black/70 backdrop-blur-md rounded-lg p-4 max-w-xs border border-white/10 pointer-events-auto"
         onMouseEnter={() => setIsVisible(true)}
       >
-        <Badge className={`mb-2 ${getCategoryColor(channel.category)}`}>
-          {channel.category === 'screen-capture' ? (
-            <><ScreenShare className="w-3 h-3" /> Screen Capture</>
-          ) : (
-            <><Tv className="w-3 h-3" /> {channel.category}</>
-          )}
+        <Badge className="mb-2 bg-red-500/20 text-red-300 border-red-500/30">
+          <Youtube className="w-3 h-3 mr-1" /> YouTube
         </Badge>
-        <h2 className="text-lg font-semibold text-white mb-1">{channel.name}</h2>
-        <p className="text-sm text-white/70">{channel.description}</p>
-        {channel.showtimes && channel.showtimes.length > 0 && (
-          <p className="text-xs text-white/50 mt-2">
-            Showtimes: {channel.showtimes.join(', ')}
+        {title && (
+          <h2 className="text-lg font-semibold text-white mb-1 line-clamp-2">{title}</h2>
+        )}
+        {adCount > 0 && (
+          <p className="text-xs text-white/50 mt-2 flex items-center gap-1">
+            <Film className="w-3 h-3" />
+            {adCount} ad{adCount > 1 ? 's' : ''} selected
           </p>
         )}
       </div>
@@ -90,17 +83,38 @@ function ChannelInfoOverlay({ channel }: { channel: Channel }) {
 }
 
 export default function Player() {
-  const { channelId } = useParams<{ channelId: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
-  const channel = channelId ? getChannelById(channelId) : undefined;
+  const addToHistory = useAddToHistory();
+  const hasRecordedRef = useRef(false);
 
-  if (!channel) {
-    return <ChannelNotFound />;
+  // Get video info from route state
+  const state = location.state as PlayerState | null;
+  const youtubeUrl = state?.youtubeUrl;
+  const adIds = state?.adIds || [];
+  const videoTitle = state?.videoTitle;
+  const thumbnailUrl = state?.thumbnailUrl;
+
+  // Record to watch history when the player loads
+  useEffect(() => {
+    if (youtubeUrl && !hasRecordedRef.current) {
+      hasRecordedRef.current = true;
+
+      const videoId = extractYoutubeVideoId(youtubeUrl);
+      const thumbnail = thumbnailUrl || (videoId ? getYoutubeThumbnailUrl(videoId) : null);
+
+      addToHistory.mutate({
+        youtube_url: youtubeUrl,
+        video_title: videoTitle || null,
+        thumbnail_url: thumbnail,
+        ad_ids: adIds,
+      });
+    }
+  }, [youtubeUrl, videoTitle, thumbnailUrl, adIds, addToHistory]);
+
+  if (!youtubeUrl) {
+    return <NoVideoSelected />;
   }
-
-  // For screen capture mode, we don't pass a video URL
-  // The CRTModelViewer will show controls to start screen capture
-  const videoUrl = channel.mediaType === 'video' ? channel.videoUrl : undefined;
 
   return (
     <div className="min-h-screen bg-black">
@@ -115,39 +129,34 @@ export default function Player() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate('/channels')}
+          onClick={() => navigate('/library')}
           className="bg-black/50 backdrop-blur-sm border-white/20 hover:bg-black/70"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Channels
+          Library
         </Button>
       </motion.div>
 
-      {/* Channel Info Overlay */}
-      <ChannelInfoOverlay channel={channel} />
+      {/* Video Info Overlay */}
+      <VideoInfoOverlay title={videoTitle} adCount={adIds.length} />
 
-      {/* Full viewport CRT viewer */}
+      {/* Full viewport CRT viewer with YouTube video */}
       <div className="fixed inset-x-0 top-20 bottom-0 z-40">
-        {channel.mediaType === 'screen-capture' ? (
-          // Screen capture mode - show CRT without video, user can start capture
-          <CRTModelViewer videoUrl="/movie.webm" />
-        ) : (
-          // Video mode - play the channel's video
-          <CRTModelViewer videoUrl={videoUrl} />
-        )}
+        <CRTModelViewer videoUrl={youtubeUrl} />
       </div>
 
-      {/* Screen Capture Instructions (only for screen-capture mode) */}
-      {channel.mediaType === 'screen-capture' && (
+      {/* Ad injection notice (placeholder for future) */}
+      {adIds.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
           className="fixed bottom-32 left-1/2 transform -translate-x-1/2 z-50"
         >
-          <div className="bg-cyan-500/20 backdrop-blur-md rounded-lg px-6 py-3 border border-cyan-500/30 text-center">
-            <p className="text-cyan-300 text-sm">
-              Click the <ScreenShare className="w-4 h-4 inline mx-1" /> button below to capture your screen
+          <div className="bg-amber-500/20 backdrop-blur-md rounded-lg px-6 py-3 border border-amber-500/30 text-center">
+            <p className="text-amber-300 text-sm flex items-center gap-2">
+              <Film className="w-4 h-4" />
+              {adIds.length} ad{adIds.length > 1 ? 's' : ''} ready for playback
             </p>
           </div>
         </motion.div>
