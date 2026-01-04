@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "rea
 import * as THREE from "three";
 import { CSS3DRenderer, CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
 import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, ScreenShare, ScreenShareOff } from "lucide-react";
+import { getSupabase, initializeSupabase } from "@/supabaseClient";
 
 // Video source type
 const VideoSourceType = {
@@ -795,6 +796,12 @@ function Model({ url, videoTexture, onScreenMeshFound }: ModelProps) {
 }
 
 interface CRTModelViewerProps {
+  /**
+   * Model path - can be:
+   * - A Supabase storage path (e.g., "tv_sony_trinitron_crt_low.glb")
+   * - A local path starting with "/" (e.g., "/models/tv.glb") - will use local file
+   * - A full URL starting with "http" - will use directly
+   */
   modelPath?: string;
   className?: string;
   /**
@@ -806,17 +813,73 @@ interface CRTModelViewerProps {
   videoUrl?: string;
 }
 
+// Default model filename in Supabase storage
+const DEFAULT_MODEL_FILENAME = "tv_sony_trinitron_crt_low.glb";
+
 export function CRTModelViewer({
-  modelPath = "/models/tv_sony_trinitron_crt_low.glb",
+  modelPath = DEFAULT_MODEL_FILENAME,
   className = "",
   videoUrl
 }: CRTModelViewerProps) {
-  // Ensure model path is absolute (starts with /)
-  const normalizedModelPath = modelPath.startsWith('/') ? modelPath : `/${modelPath}`;
-  
+  const [resolvedModelUrl, setResolvedModelUrl] = useState<string | null>(null);
+  const [modelError, setModelError] = useState<string | null>(null);
+
+  // Resolve model URL - either from Supabase storage, local path, or direct URL
   useEffect(() => {
-    console.log("Loading GLB model from:", normalizedModelPath);
-  }, [normalizedModelPath]);
+    async function resolveModelUrl() {
+      // If it's already a full URL, use directly
+      if (modelPath.startsWith('http://') || modelPath.startsWith('https://')) {
+        console.log("Using direct model URL:", modelPath);
+        setResolvedModelUrl(modelPath);
+        return;
+      }
+
+      // If it starts with /, treat as local path
+      if (modelPath.startsWith('/')) {
+        console.log("Using local model path:", modelPath);
+        setResolvedModelUrl(modelPath);
+        return;
+      }
+
+      // Otherwise, fetch from Supabase storage
+      try {
+        console.log("Fetching model from Supabase storage:", modelPath);
+        await initializeSupabase();
+        const supabase = getSupabase();
+
+        const { data } = supabase.storage
+          .from('models')
+          .getPublicUrl(modelPath);
+
+        if (data?.publicUrl) {
+          console.log("Resolved Supabase model URL:", data.publicUrl);
+          setResolvedModelUrl(data.publicUrl);
+        } else {
+          console.error("Failed to get public URL for model - no publicUrl in response");
+          setModelError('Failed to get public URL for model');
+          // Fallback to local path
+          const fallbackPath = `/models/${modelPath}`;
+          console.log("Falling back to local path:", fallbackPath);
+          setResolvedModelUrl(fallbackPath);
+        }
+      } catch (error) {
+        console.error("Failed to resolve model URL:", error);
+        setModelError(error instanceof Error ? error.message : 'Failed to load model');
+        // Fallback to local path
+        const fallbackPath = `/models/${modelPath}`;
+        console.log("Falling back to local path:", fallbackPath);
+        setResolvedModelUrl(fallbackPath);
+      }
+    }
+
+    resolveModelUrl();
+  }, [modelPath]);
+
+  useEffect(() => {
+    if (resolvedModelUrl) {
+      console.log("Loading GLB model from:", resolvedModelUrl);
+    }
+  }, [resolvedModelUrl]);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hideTimeoutRef = useRef<number | null>(null);
@@ -1143,6 +1206,18 @@ export function CRTModelViewer({
     <div ref={containerRef} className={`${className} flex flex-col bg-black`} style={{ width: '100%', height: '100%' }}>
       {/* 3D Viewer */}
       <div ref={viewerContainerRef} className="relative flex-1 min-h-0" style={{ overflow: 'hidden' }}>
+        {!resolvedModelUrl ? (
+          <div className="flex items-center justify-center h-full text-white/50">
+            {modelError ? (
+              <div className="text-red-400 text-center">
+                <p>Failed to load model</p>
+                <p className="text-sm mt-1">{modelError}</p>
+              </div>
+            ) : (
+              <p>Loading model...</p>
+            )}
+          </div>
+        ) : (
         <Canvas
           camera={{ position: [0, 0, 10], fov: 45 }}
           style={{ 
@@ -1157,7 +1232,7 @@ export function CRTModelViewer({
             <directionalLight position={[-5, 5, 5]} intensity={0.5} />
             <Bounds fit clip observe margin={1.2}>
               <Model 
-                url={normalizedModelPath} 
+                url={resolvedModelUrl}
                 videoTexture={videoSourceType === VideoSourceType.YouTubeEmbed ? null : videoTexture}
                 onScreenMeshFound={setScreenMesh}
               />
@@ -1181,6 +1256,7 @@ export function CRTModelViewer({
             )}
           </Suspense>
         </Canvas>
+        )}
 
         <button
           onClick={toggleFullscreen}
