@@ -1,7 +1,10 @@
 package com.richwavelet.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.richwavelet.backend.service.AdAnalysisService;
 import com.richwavelet.backend.service.SupabaseService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -19,15 +22,19 @@ import java.util.UUID;
 @RequestMapping("/api/protected/library")
 public class LibraryController {
 
+    private static final Logger logger = LoggerFactory.getLogger(LibraryController.class);
+
     private final SupabaseService supabaseService;
+    private final AdAnalysisService adAnalysisService;
     private final ObjectMapper objectMapper;
     private static final String ADS_TABLE = "ads";
     private static final String HISTORY_TABLE = "watch_history";
     private static final String ADS_BUCKET = "ads";
     private static final int SIGNED_URL_EXPIRY_SECONDS = 3600; // 1 hour
 
-    public LibraryController(SupabaseService supabaseService) {
+    public LibraryController(SupabaseService supabaseService, AdAnalysisService adAnalysisService) {
         this.supabaseService = supabaseService;
+        this.adAnalysisService = adAnalysisService;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -135,9 +142,15 @@ public class LibraryController {
         adData.put("storage_path", storagePath);
         adData.put("file_size", file.getSize());
         adData.put("status", "uploaded");
+        adData.put("analysis_status", "pending");
         adData.put("created_at", Instant.now().toString());
 
-        return supabaseService.insertIntoTable(ADS_TABLE, adData);
+        String result = supabaseService.insertIntoTable(ADS_TABLE, adData);
+
+        // TODO: Trigger async ad analysis here once integrated
+        // For now, analysis can be triggered manually via /api/protected/ads/{id}/analyze
+
+        return result;
     }
 
     /**
@@ -178,6 +191,89 @@ public class LibraryController {
         ));
 
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Trigger AI analysis for an ad
+     * POST /api/protected/library/ads/{id}/analyze
+     */
+    @PostMapping("/ads/{id}/analyze")
+    public ResponseEntity<Map<String, String>> analyzeAd(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id
+    ) throws IOException {
+        String userId = getUserId(jwt);
+
+        // Verify the ad belongs to the user
+        String result = supabaseService.queryTable(ADS_TABLE, Map.of(
+            "select", "id,storage_path,analysis_status",
+            "id", "eq." + id,
+            "user_id", "eq." + userId
+        ));
+
+        List<Map<String, Object>> ads = objectMapper.readValue(result, List.class);
+        if (ads.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Map<String, Object> ad = ads.get(0);
+        String currentStatus = (String) ad.get("analysis_status");
+
+        if ("analyzing".equals(currentStatus)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Analysis already in progress"));
+        }
+
+        // Update status to analyzing
+        supabaseService.updateTable(ADS_TABLE,
+            Map.of("id", "eq." + id),
+            Map.of("analysis_status", "analyzing")
+        );
+
+        // Trigger async analysis
+        String storagePath = (String) ad.get("storage_path");
+        adAnalysisService.analyzeAdFromStorageAsync(id, storagePath, ADS_BUCKET, ADS_TABLE);
+
+        logger.info("Triggered analysis for ad {} with storage path {}", id, storagePath);
+
+        return ResponseEntity.ok(Map.of(
+            "status", "queued",
+            "message", "Analysis started"
+        ));
+    }
+
+    /**
+     * Get AI analysis metadata for an ad
+     * GET /api/protected/library/ads/{id}/metadata
+     */
+    @GetMapping("/ads/{id}/metadata")
+    public ResponseEntity<?> getAdMetadata(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String id
+    ) throws IOException {
+        String userId = getUserId(jwt);
+
+        // Verify the ad belongs to the user and get its status
+        String result = supabaseService.queryTable(ADS_TABLE, Map.of(
+            "select", "id,analysis_status",
+            "id", "eq." + id,
+            "user_id", "eq." + userId
+        ));
+
+        List<Map<String, Object>> ads = objectMapper.readValue(result, List.class);
+        if (ads.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String analysisStatus = (String) ads.get(0).get("analysis_status");
+
+        // Check if metadata exists
+        return adAnalysisService.getMetadataByAdId(id)
+                .map(metadata -> ResponseEntity.ok((Object) metadata))
+                .orElse(ResponseEntity.ok(Map.of(
+                        "status", analysisStatus != null ? analysisStatus : "pending",
+                        "message", "Analysis not yet complete"
+                )));
     }
 
     // ==================== WATCH HISTORY ENDPOINTS ====================

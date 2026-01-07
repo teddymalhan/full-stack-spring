@@ -32,6 +32,9 @@ public class AdUpload {
     @Column(name = "uploaded_at")
     private OffsetDateTime uploadedAt;
 
+    @Column(name = "analysis_status")
+    private String analysisStatus = "pending";
+
     public AdUpload() {
     }
 
@@ -106,5 +109,13 @@ public class AdUpload {
 
     public void setUploadedAt(OffsetDateTime uploadedAt) {
         this.uploadedAt = uploadedAt;
+    }
+
+    public String getAnalysisStatus() {
+        return analysisStatus;
+    }
+
+    public void setAnalysisStatus(String analysisStatus) {
+        this.analysisStatus = analysisStatus;
     }
 }

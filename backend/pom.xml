@@ -118,6 +118,13 @@
 			<artifactId>google-http-client-gson</artifactId>
 			<version>1.44.1</version>
 		</dependency>
+
+		<!-- Google Cloud Vertex AI (for Gemini) -->
+		<dependency>
+			<groupId>com.google.cloud</groupId>
+			<artifactId>google-cloud-vertexai</artifactId>
+			<version>1.18.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>

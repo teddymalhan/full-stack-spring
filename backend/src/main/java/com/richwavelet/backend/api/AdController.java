@@ -2,6 +2,7 @@ package com.richwavelet.backend.api;
 
 import com.richwavelet.backend.model.AdUpload;
 import com.richwavelet.backend.repository.AdUploadRepository;
+import com.richwavelet.backend.service.AdAnalysisService;
 import com.richwavelet.backend.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -32,10 +34,15 @@ public class AdController {
 
     private final AdUploadRepository adUploadRepository;
     private final StorageService storageService;
+    private final AdAnalysisService adAnalysisService;
 
-    public AdController(AdUploadRepository adUploadRepository, StorageService storageService) {
+    public AdController(
+            AdUploadRepository adUploadRepository,
+            StorageService storageService,
+            AdAnalysisService adAnalysisService) {
         this.adUploadRepository = adUploadRepository;
         this.storageService = storageService;
+        this.adAnalysisService = adAnalysisService;
     }
 
     @PostMapping("/upload")
@@ -77,6 +84,9 @@ public class AdController {
 
             AdUpload saved = adUploadRepository.save(adUpload);
             logger.info("Ad uploaded successfully: {}", saved.getId());
+
+            // Trigger async analysis
+            adAnalysisService.analyzeAdAsync(saved.getId());
 
             return ResponseEntity.ok(saved);
 
@@ -123,6 +133,47 @@ public class AdController {
                                 .body("Error deleting ad");
                     }
                 })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/analyze")
+    public ResponseEntity<?> triggerAnalysis(@PathVariable Long id, Authentication authentication) {
+        String userId = getUserId(authentication);
+
+        return adUploadRepository.findById(id)
+                .filter(ad -> ad.getUserId().equals(userId))
+                .map(ad -> {
+                    if ("analyzing".equals(ad.getAnalysisStatus())) {
+                        return ResponseEntity.badRequest()
+                                .body(Map.of("error", "Analysis already in progress"));
+                    }
+
+                    // Reset status and trigger analysis
+                    ad.setAnalysisStatus("pending");
+                    adUploadRepository.save(ad);
+                    adAnalysisService.analyzeAdAsync(ad.getId());
+
+                    logger.info("Triggered analysis for ad {}", id);
+                    return ResponseEntity.ok(Map.of(
+                            "status", "queued",
+                            "message", "Analysis started"
+                    ));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/metadata")
+    public ResponseEntity<?> getAdMetadata(@PathVariable Long id, Authentication authentication) {
+        String userId = getUserId(authentication);
+
+        return adUploadRepository.findById(id)
+                .filter(ad -> ad.getUserId().equals(userId))
+                .map(ad -> adAnalysisService.getMetadata(id)
+                        .map(metadata -> ResponseEntity.ok((Object) metadata))
+                        .orElse(ResponseEntity.ok(Map.of(
+                                "status", ad.getAnalysisStatus(),
+                                "message", "Analysis not yet complete"
+                        ))))
                 .orElse(ResponseEntity.notFound().build());
     }
 

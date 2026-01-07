@@ -21,13 +21,16 @@ import java.util.UUID;
 public class StorageService {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
+    private static final int SIGNED_URL_EXPIRY_SECONDS = 3600; // 1 hour
 
     private final OkHttpClient httpClient;
     private final SupabaseConfig supabaseConfig;
+    private final SupabaseService supabaseService;
 
-    public StorageService(OkHttpClient supabaseHttpClient, SupabaseConfig supabaseConfig) {
+    public StorageService(OkHttpClient supabaseHttpClient, SupabaseConfig supabaseConfig, SupabaseService supabaseService) {
         this.httpClient = supabaseHttpClient;
         this.supabaseConfig = supabaseConfig;
+        this.supabaseService = supabaseService;
     }
 
     /**
@@ -85,11 +88,13 @@ public class StorageService {
     }
 
     /**
-     * Download a file from Supabase Storage to a local path
+     * Download a file from Supabase Storage to a local path using a signed URL (for private buckets)
      */
     public void downloadFromStorage(String bucket, String storagePath, Path destination) throws IOException {
-        String url = getPublicUrl(bucket, storagePath);
-        downloadFile(url, destination);
+        // Use signed URL for private bucket access
+        String signedUrl = supabaseService.createSignedUrl(bucket, storagePath, SIGNED_URL_EXPIRY_SECONDS);
+        logger.info("Downloading from signed URL for {}/{}", bucket, storagePath);
+        downloadFile(signedUrl, destination);
     }
 
     /**

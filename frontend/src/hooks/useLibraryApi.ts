@@ -91,6 +91,25 @@ export function useDeleteAd() {
   })
 }
 
+export function useAnalyzeAd() {
+  const queryClient = useQueryClient()
+  const { getToken, userId } = useAuth()
+
+  return useMutation({
+    mutationFn: async (adId: string) => {
+      const token = await getToken()
+      if (!token) throw new Error('Not authenticated')
+
+      return fetchWithAuth(`${API_BASE}/ads/${adId}/analyze`, token, {
+        method: 'POST',
+      }) as Promise<{ status: string; message: string }>
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ads', userId] })
+    },
+  })
+}
+
 // ==================== WATCH HISTORY HOOKS ====================
 
 export function useWatchHistory() {

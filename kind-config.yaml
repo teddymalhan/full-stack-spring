@@ -7,3 +7,9 @@ nodes:
       - containerPort: 30080
         hostPort: 8080
         protocol: TCP
+    # Mount gcloud credentials for Vertex AI access
+    # Run `gcloud auth application-default login` first
+    extraMounts:
+      - hostPath: /Users/teddymalhan/.config/gcloud
+        containerPath: /root/.config/gcloud
+        readOnly: true

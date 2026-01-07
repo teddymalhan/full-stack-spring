@@ -2,6 +2,20 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 export type AdStatus = 'uploaded' | 'processing' | 'ready' | 'error'
+export type AnalysisStatus = 'pending' | 'analyzing' | 'completed' | 'failed'
+
+export interface AdMetadata {
+  id: number
+  ad_id: number
+  categories: string[]
+  tone: string | null
+  era_style: string | null
+  keywords: string[]
+  transcript: string | null
+  brand_name: string | null
+  energy_level: number | null
+  analyzed_at: string
+}
 
 export interface Ad {
   id: string
@@ -11,7 +25,9 @@ export interface Ad {
   storage_path: string
   file_size: number
   status: AdStatus
+  analysis_status?: AnalysisStatus | null
   created_at: string
+  metadata?: AdMetadata
 }
 
 export interface WatchHistoryEntry {

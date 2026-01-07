@@ -33,12 +33,15 @@ class StorageServiceTest {
     @Mock
     private SupabaseConfig supabaseConfig;
 
+    @Mock
+    private SupabaseService supabaseService;
+
     private StorageService storageService;
 
     @BeforeEach
     void setUp() {
         when(supabaseConfig.getSupabaseUrl()).thenReturn("https://test.supabase.co");
-        storageService = new StorageService(httpClient, supabaseConfig);
+        storageService = new StorageService(httpClient, supabaseConfig, supabaseService);
     }
 
     @Test

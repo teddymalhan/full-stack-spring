@@ -23,12 +23,15 @@ services:
       - GCP_TASK_QUEUE=${GCP_TASK_QUEUE:-retro-video-processing}
       - GCP_WORKER_BASE_URL=${GCP_WORKER_BASE_URL:-}
       - GCP_SERVICE_ACCOUNT=${GCP_SERVICE_ACCOUNT:-}
-      # Gemini API Configuration
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      # Vertex AI Gemini Configuration (uses Application Default Credentials)
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash-001}
       # Video Processing Configuration
       - VIDEO_TEMP_DIR=${VIDEO_TEMP_DIR:-/tmp/video-processing}
       - VIDEO_MAX_UPLOAD_SIZE_MB=${VIDEO_MAX_UPLOAD_SIZE_MB:-500}
+    volumes:
+      # Mount GCP credentials for local development
+      # Run `gcloud auth application-default login` first
+      - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
     restart: unless-stopped
 
 

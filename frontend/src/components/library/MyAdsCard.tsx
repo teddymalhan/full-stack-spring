@@ -2,11 +2,16 @@ import { useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { useLibraryStore, type Ad, type AdStatus } from "@/stores/library";
-import { useUploadAd, useDeleteAd } from "@/hooks/useLibraryApi";
-import { Film, Upload, Trash2, Loader2, FileVideo, AlertCircle } from "lucide-react";
+import { useLibraryStore, type Ad, type AnalysisStatus } from "@/stores/library";
+import { useUploadAd, useDeleteAd, useAnalyzeAd } from "@/hooks/useLibraryApi";
+import { Film, Upload, Trash2, Loader2, FileVideo, AlertCircle, Sparkles, Brain, RefreshCw } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -23,67 +28,141 @@ function formatDate(dateString: string): string {
   });
 }
 
-function getStatusBadge(status: AdStatus) {
+function getAnalysisStatusBadge(status: AnalysisStatus | null | undefined) {
   switch (status) {
-    case "uploaded":
-      return <Badge variant="secondary">Uploaded</Badge>;
-    case "processing":
-      return <Badge variant="outline" className="animate-pulse">Processing</Badge>;
-    case "ready":
-      return <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30">Ready</Badge>;
-    case "error":
-      return <Badge variant="destructive">Error</Badge>;
+    case "analyzing":
+      return (
+        <Badge variant="outline" className="animate-pulse gap-1">
+          <Brain className="w-3 h-3" />
+          Analyzing
+        </Badge>
+      );
+    case "completed":
+      return (
+        <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30 gap-1">
+          <Sparkles className="w-3 h-3" />
+          Analyzed
+        </Badge>
+      );
+    case "failed":
+      return (
+        <Badge variant="destructive" className="gap-1">
+          <AlertCircle className="w-3 h-3" />
+          Failed
+        </Badge>
+      );
+    case "pending":
     default:
-      return null;
+      // Default to pending for null/undefined/pending
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Sparkles className="w-3 h-3" />
+          Pending
+        </Badge>
+      );
   }
 }
 
 interface AdItemProps {
   ad: Ad;
   onDelete: (id: string) => void;
+  onAnalyze: (id: string) => void;
   isDeleting: boolean;
+  isAnalyzing: boolean;
 }
 
-function AdItem({ ad, onDelete, isDeleting }: AdItemProps) {
+function AdItem({ ad, onDelete, onAnalyze, isDeleting, isAnalyzing }: AdItemProps) {
+  const hasMetadata = ad.metadata && ad.analysis_status === "completed";
+  const canAnalyze = ad.analysis_status !== "analyzing";
+
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-      <div className="shrink-0">
-        <FileVideo className="w-8 h-8 text-muted-foreground" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{ad.file_name}</p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{formatFileSize(ad.file_size)}</span>
-          <span>-</span>
-          <span>{formatDate(ad.created_at)}</span>
+    <TooltipProvider>
+      <div className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors space-y-2">
+        {/* Top row: icon, filename, action buttons */}
+        <div className="flex items-center gap-2">
+          <FileVideo className="w-5 h-5 text-muted-foreground shrink-0" />
+          <p className="text-sm font-medium truncate flex-1 min-w-0">{ad.file_name}</p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onAnalyze(ad.id)}
+                disabled={!canAnalyze || isAnalyzing}
+                className="h-7 w-7 text-muted-foreground hover:text-primary shrink-0"
+              >
+                {isAnalyzing || ad.analysis_status === "analyzing" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{ad.analysis_status === "completed" ? "Re-analyze" : "Analyze"}</p>
+            </TooltipContent>
+          </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onDelete(ad.id)}
+            disabled={isDeleting}
+            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+          >
+            {isDeleting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </Button>
         </div>
+        {/* Bottom row: metadata and badge */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{formatFileSize(ad.file_size)}</span>
+            <span>-</span>
+            <span>{formatDate(ad.created_at)}</span>
+          </div>
+          {getAnalysisStatusBadge(ad.analysis_status)}
+        </div>
+        {/* Categories row (if analyzed) */}
+        {hasMetadata && ad.metadata?.categories && ad.metadata.categories.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {ad.metadata.categories.slice(0, 3).map((cat) => (
+              <span
+                key={cat}
+                className="px-1.5 py-0.5 text-[10px] bg-primary/10 text-primary rounded"
+              >
+                {cat}
+              </span>
+            ))}
+            {ad.metadata.categories.length > 3 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground rounded cursor-help">
+                    +{ad.metadata.categories.length - 3}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{ad.metadata.categories.slice(3).join(", ")}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-2">
-        {getStatusBadge(ad.status)}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(ad.id)}
-          disabled={isDeleting}
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        >
-          {isDeleting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash2 className="w-4 h-4" />
-          )}
-        </Button>
-      </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
 export function MyAdsCard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const { ads, isLoadingAds, uploadProgress } = useLibraryStore();
   const uploadAd = useUploadAd();
   const deleteAd = useDeleteAd();
+  const analyzeAd = useAnalyzeAd();
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -120,8 +199,20 @@ export function MyAdsCard() {
     }
   };
 
+  const handleAnalyze = async (id: string) => {
+    setAnalyzingId(id);
+    try {
+      await analyzeAd.mutateAsync(id);
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      alert("Failed to start analysis. Please try again.");
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
   return (
-    <Card className="h-full">
+    <Card className="h-full min-w-[320px]">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Film className="w-5 h-5" />
@@ -164,7 +255,7 @@ export function MyAdsCard() {
         </div>
 
         {/* Ads List */}
-        <ScrollArea className="h-[300px] pr-4">
+        <div className="h-[300px] overflow-y-auto">
           {isLoadingAds ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -186,12 +277,14 @@ export function MyAdsCard() {
                   key={ad.id}
                   ad={ad}
                   onDelete={handleDelete}
+                  onAnalyze={handleAnalyze}
                   isDeleting={deletingId === ad.id}
+                  isAnalyzing={analyzingId === ad.id}
                 />
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         {/* Error state */}
         {uploadAd.isError && (
