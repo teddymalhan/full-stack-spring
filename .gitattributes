@@ -1,9 +1,1 @@
-# Ignore frontend for language stats
-frontend/** linguist-vendored
-web/** linguist-vendored
-ui/** linguist-vendored
-
-# Or ignore TypeScript entirely
-*.ts linguist-vendored
-*.tsx linguist-vendored
 
