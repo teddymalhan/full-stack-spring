@@ -7,14 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
   useLibraryStore,
   extractYoutubeVideoId,
   getYoutubeThumbnailUrl,
   isValidYoutubeUrl,
 } from "@/stores/library";
-import { fetchYoutubeVideoInfo } from "@/hooks/useLibraryApi";
-import { Play, Youtube, FileVideo, AlertCircle, Loader2, Check } from "lucide-react";
+import { fetchYoutubeVideoInfo, useAnalyzeVideo, type VideoAnalysisResult } from "@/hooks/useLibraryApi";
+import { Play, Youtube, FileVideo, AlertCircle, Loader2, Check, Sparkles, Clock, TrendingUp } from "lucide-react";
 
 export function WatchNowCard() {
   const navigate = useNavigate();
@@ -34,9 +35,11 @@ export function WatchNowCard() {
   } | null>(null);
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [videoAnalysis, setVideoAnalysis] = useState<VideoAnalysisResult | null>(null);
 
   const videoId = extractYoutubeVideoId(youtubeUrl);
   const isValidUrl = isValidYoutubeUrl(youtubeUrl);
+  const analyzeVideoMutation = useAnalyzeVideo();
 
   // Fetch video info when URL changes
   useEffect(() => {
@@ -81,6 +84,23 @@ export function WatchNowCard() {
         thumbnailUrl: videoInfo?.thumbnailUrl || (videoId ? getYoutubeThumbnailUrl(videoId) : null),
       },
     });
+  };
+
+  const handleAnalyzeVideo = async () => {
+    if (!isValidUrl) return;
+
+    try {
+      const result = await analyzeVideoMutation.mutateAsync(youtubeUrl);
+      setVideoAnalysis(result);
+    } catch (error) {
+      console.error("Analysis failed:", error);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const allSelected = ads.length > 0 && selectedAdIds.length === ads.length;
@@ -204,6 +224,103 @@ export function WatchNowCard() {
             )}
           </ScrollArea>
         </div>
+
+        {/* Video Analysis Section */}
+        {isValidUrl && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  AI Video Analysis
+                </Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAnalyzeVideo}
+                  disabled={analyzeVideoMutation.isPending}
+                  className="h-8"
+                >
+                  {analyzeVideoMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 mr-2" />
+                      Analyze
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {analyzeVideoMutation.isError && (
+                <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Analysis failed. Please try again.
+                  </p>
+                </div>
+              )}
+
+              {videoAnalysis && (
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {formatDuration(videoAnalysis.durationSeconds)}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs capitalize">
+                          {videoAnalysis.sentiment}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {videoAnalysis.categories.map((cat) => (
+                          <Badge key={cat} variant="outline" className="text-xs">
+                            {cat}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {videoAnalysis.adBreakSuggestions.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <p className="text-xs font-medium flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        Suggested Ad Break Points
+                      </p>
+                      <ScrollArea className="h-[80px]">
+                        <div className="space-y-1.5">
+                          {videoAnalysis.adBreakSuggestions
+                            .sort((a, b) => b.priority - a.priority)
+                            .slice(0, 5)
+                            .map((suggestion, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-xs p-2 rounded bg-background">
+                                <Badge variant="secondary" className="text-xs shrink-0">
+                                  {formatDuration(suggestion.timestamp)}
+                                </Badge>
+                                <span className="text-muted-foreground flex-1 truncate">
+                                  {suggestion.reason}
+                                </span>
+                                <Badge variant="outline" className="text-xs shrink-0">
+                                  Priority: {suggestion.priority}
+                                </Badge>
+                              </div>
+                            ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Start Watching Button */}
         <Button

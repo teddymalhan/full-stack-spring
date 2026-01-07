@@ -173,6 +173,62 @@ export function useDeleteHistoryEntry() {
   })
 }
 
+// ==================== VIDEO ANALYSIS HOOKS ====================
+
+export interface AdBreakSuggestion {
+  timestamp: number
+  reason: string
+  priority: number
+  suggestedAdCategories: string[]
+}
+
+export interface VideoAnalysisResult {
+  videoId: string
+  youtubeUrl: string
+  title: string
+  description: string
+  durationSeconds: number
+  categories: string[]
+  topics: string[]
+  sentiment: string
+  adBreakSuggestions: AdBreakSuggestion[]
+}
+
+export function useAnalyzeVideo() {
+  const { getToken } = useAuth()
+
+  return useMutation({
+    mutationFn: async (youtubeUrl: string) => {
+      const token = await getToken()
+      if (!token) throw new Error('Not authenticated')
+
+      return fetchWithAuth('/api/protected/video/analyze', token, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ youtubeUrl }),
+      }) as Promise<VideoAnalysisResult>
+    },
+  })
+}
+
+export function useGetCachedVideoAnalysis(videoId: string | null) {
+  const { getToken } = useAuth()
+
+  return useQuery<VideoAnalysisResult>({
+    queryKey: ['videoAnalysis', videoId],
+    queryFn: async () => {
+      const token = await getToken()
+      if (!token) throw new Error('Not authenticated')
+      if (!videoId) throw new Error('No video ID')
+      return fetchWithAuth(`/api/protected/video/analysis/${videoId}`, token)
+    },
+    enabled: !!videoId,
+    retry: false,
+  })
+}
+
 // ==================== YOUTUBE HELPERS ====================
 
 interface YouTubeOEmbedResponse {
