@@ -63,7 +63,7 @@ public class AdAnalysisService {
      * Analyze an ad asynchronously
      */
     @Async
-    public void analyzeAdAsync(Long adId) {
+    public void analyzeAdAsync(String adId) {
         try {
             analyzeAd(adId);
         } catch (Exception e) {
@@ -74,7 +74,7 @@ public class AdAnalysisService {
     /**
      * Analyze an ad video using Vertex AI Gemini and save the results
      */
-    public AdMetadata analyzeAd(Long adId) throws IOException {
+    public AdMetadata analyzeAd(String adId) throws IOException {
         logger.info("Starting analysis for ad {}", adId);
 
         Optional<AdUpload> adOpt = adUploadRepository.findById(adId);
@@ -101,7 +101,7 @@ public class AdAnalysisService {
             AdAnalysisResult result = analyzeWithGemini(videoBytes);
 
             // Save metadata
-            AdMetadata metadata = saveMetadata(String.valueOf(adId), result);
+            AdMetadata metadata = saveMetadata(adId, result);
 
             // Update status to completed
             ad.setAnalysisStatus("completed");
@@ -296,16 +296,9 @@ public class AdAnalysisService {
     }
 
     /**
-     * Get metadata for an ad by Long id (for ad_uploads table)
+     * Get metadata for an ad
      */
-    public Optional<AdMetadata> getMetadata(Long adId) {
-        return adMetadataRepository.findByAdId(String.valueOf(adId));
-    }
-
-    /**
-     * Get metadata for an ad by String id (for ads table)
-     */
-    public Optional<AdMetadata> getMetadataByAdId(String adId) {
+    public Optional<AdMetadata> getMetadata(String adId) {
         return adMetadataRepository.findByAdId(adId);
     }
 

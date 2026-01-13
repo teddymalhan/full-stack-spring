@@ -140,22 +140,22 @@ class ProcessVideoControllerTest {
         video.setUserId(userId);
 
         AdUpload ad1 = new AdUpload();
-        ad1.setId(10L);
+        ad1.setId("ad-uuid-1");
         ad1.setUserId(userId);
 
         AdUpload ad2 = new AdUpload();
-        ad2.setId(20L);
+        ad2.setId("ad-uuid-2");
         ad2.setUserId(userId);
 
         ProcessVideoRequest request = new ProcessVideoRequest(
                 1L,
-                Arrays.asList(10L, 20L),
+                Arrays.asList("ad-uuid-1", "ad-uuid-2"),
                 ShaderStyle.VHS
         );
 
         when(videoUploadRepository.findById(1L)).thenReturn(Optional.of(video));
-        when(adUploadRepository.findById(10L)).thenReturn(Optional.of(ad1));
-        when(adUploadRepository.findById(20L)).thenReturn(Optional.of(ad2));
+        when(adUploadRepository.findById("ad-uuid-1")).thenReturn(Optional.of(ad1));
+        when(adUploadRepository.findById("ad-uuid-2")).thenReturn(Optional.of(ad2));
         when(cloudTasksService.hasExistingTask(userId)).thenReturn(false);
         when(cloudTasksService.createProcessingTask(any(), anyString(), anyString())).thenReturn("task-123");
 
@@ -164,8 +164,8 @@ class ProcessVideoControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isAccepted());
 
-        verify(adUploadRepository).findById(10L);
-        verify(adUploadRepository).findById(20L);
+        verify(adUploadRepository).findById("ad-uuid-1");
+        verify(adUploadRepository).findById("ad-uuid-2");
         verify(cloudTasksService).createProcessingTask(any(), eq(userId), anyString());
     }
 
@@ -177,12 +177,12 @@ class ProcessVideoControllerTest {
 
         ProcessVideoRequest request = new ProcessVideoRequest(
                 1L,
-                Arrays.asList(999L),
+                Arrays.asList("ad-uuid-999"),
                 ShaderStyle.CRT
         );
 
         when(videoUploadRepository.findById(1L)).thenReturn(Optional.of(video));
-        when(adUploadRepository.findById(999L)).thenReturn(Optional.empty());
+        when(adUploadRepository.findById("ad-uuid-999")).thenReturn(Optional.empty());
 
         mockMvc.perform(post("/api/protected/process-video")
                         .contentType(MediaType.APPLICATION_JSON)

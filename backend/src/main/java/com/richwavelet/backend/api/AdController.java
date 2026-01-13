@@ -105,7 +105,7 @@ public class AdController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getAd(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<?> getAd(@PathVariable String id, Authentication authentication) {
         String userId = getUserId(authentication);
 
         return adUploadRepository.findById(id)
@@ -115,7 +115,7 @@ public class AdController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteAd(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<?> deleteAd(@PathVariable String id, Authentication authentication) {
         String userId = getUserId(authentication);
 
         return adUploadRepository.findById(id)
@@ -137,7 +137,7 @@ public class AdController {
     }
 
     @PostMapping("/{id}/analyze")
-    public ResponseEntity<?> triggerAnalysis(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<?> triggerAnalysis(@PathVariable String id, Authentication authentication) {
         String userId = getUserId(authentication);
 
         return adUploadRepository.findById(id)
@@ -163,7 +163,7 @@ public class AdController {
     }
 
     @GetMapping("/{id}/metadata")
-    public ResponseEntity<?> getAdMetadata(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<?> getAdMetadata(@PathVariable String id, Authentication authentication) {
         String userId = getUserId(authentication);
 
         return adUploadRepository.findById(id)

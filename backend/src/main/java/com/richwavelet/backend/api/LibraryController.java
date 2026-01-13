@@ -268,7 +268,7 @@ public class LibraryController {
         String analysisStatus = (String) ads.get(0).get("analysis_status");
 
         // Check if metadata exists
-        return adAnalysisService.getMetadataByAdId(id)
+        return adAnalysisService.getMetadata(id)
                 .map(metadata -> ResponseEntity.ok((Object) metadata))
                 .orElse(ResponseEntity.ok(Map.of(
                         "status", analysisStatus != null ? analysisStatus : "pending",

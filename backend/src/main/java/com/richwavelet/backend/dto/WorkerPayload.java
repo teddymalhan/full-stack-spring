@@ -6,6 +6,6 @@ public record WorkerPayload(
     String jobId,
     String userId,
     Long videoId,
-    List<Long> adIds,
+    List<String> adIds,
     String shaderStyle
 ) {}

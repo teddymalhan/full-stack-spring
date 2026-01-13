@@ -5,6 +5,6 @@ import java.util.List;
 
 public record ProcessVideoRequest(
     Long videoId,
-    List<Long> adIds,
+    List<String> adIds,
     ShaderStyle shaderStyle
 ) {}

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface AdUploadRepository extends JpaRepository<AdUpload, Long> {
+public interface AdUploadRepository extends JpaRepository<AdUpload, String> {
     List<AdUpload> findByUserId(String userId);
     List<AdUpload> findByUserIdOrderByUploadedAtDesc(String userId);
 }

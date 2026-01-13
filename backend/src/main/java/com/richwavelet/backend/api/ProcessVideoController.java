@@ -63,7 +63,7 @@ public class ProcessVideoController {
 
         // Validate ads exist and belong to user
         if (request.adIds() != null && !request.adIds().isEmpty()) {
-            for (Long adId : request.adIds()) {
+            for (String adId : request.adIds()) {
                 var adOpt = adUploadRepository.findById(adId);
                 if (adOpt.isEmpty() || !adOpt.get().getUserId().equals(userId)) {
                     return ResponseEntity.badRequest().body("Ad not found or access denied: " + adId);

@@ -90,7 +90,7 @@ public class AdMatchingService {
                 AdMetadata metadata = metadataOpt.get();
 
                 // Fetch ad upload info for URL and duration
-                Optional<AdUpload> uploadOpt = adUploadRepository.findById(Long.parseLong(adId));
+                Optional<AdUpload> uploadOpt = adUploadRepository.findById(adId);
                 if (uploadOpt.isEmpty()) {
                     logger.warn("No upload found for ad: {}, skipping", adId);
                     continue;

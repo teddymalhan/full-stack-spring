@@ -3,8 +3,10 @@ import { OrbitControls, useGLTF, Environment, Bounds, useBounds } from "@react-t
 import { Suspense, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import * as THREE from "three";
 import { CSS3DRenderer, CSS3DObject } from "three/examples/jsm/renderers/CSS3DRenderer.js";
-import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, ScreenShare, ScreenShareOff } from "lucide-react";
+import { Maximize, Minimize, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, ScreenShare, ScreenShareOff, Film } from "lucide-react";
 import { getSupabase, initializeSupabase } from "@/supabaseClient";
+import { AdOverlay } from "./AdOverlay";
+import { usePlaybackStore } from "@/stores/playback";
 
 // Video source type
 const VideoSourceType = {
@@ -795,6 +797,16 @@ function Model({ url, videoTexture, onScreenMeshFound }: ModelProps) {
   return <primitive object={scene} />;
 }
 
+interface AdScheduleItem {
+  adId: string;
+  adUrl: string;
+  insertAt: number;
+  duration: number;
+  matchScore: number;
+  matchReason: string;
+  played?: boolean;
+}
+
 interface CRTModelViewerProps {
   /**
    * Model path - can be:
@@ -811,6 +823,10 @@ interface CRTModelViewerProps {
    *   Note: YouTube videos use CSS3D iframe with CSS-based CRT overlay effects
    */
   videoUrl?: string;
+  /**
+   * Ad schedule for insertion during playback
+   */
+  adSchedule?: AdScheduleItem[];
 }
 
 // Default model filename in Supabase storage
@@ -819,7 +835,8 @@ const DEFAULT_MODEL_FILENAME = "tv_sony_trinitron_crt_low.glb";
 export function CRTModelViewer({
   modelPath = DEFAULT_MODEL_FILENAME,
   className = "",
-  videoUrl
+  videoUrl,
+  adSchedule = []
 }: CRTModelViewerProps) {
   const [resolvedModelUrl, setResolvedModelUrl] = useState<string | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -897,6 +914,26 @@ export function CRTModelViewer({
   const [screenMesh, setScreenMesh] = useState<THREE.Mesh | null>(null);
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [videoSourceType, setVideoSourceType] = useState<VideoSourceTypeValue>(VideoSourceType.LocalVideo);
+
+  // Playback store for ad management
+  const { status: playbackStatus, currentAd, setAdSchedule, startAd, completeAd, skipAd } = usePlaybackStore();
+
+  // Initialize ad schedule when component mounts or schedule changes
+  useEffect(() => {
+    if (adSchedule && adSchedule.length > 0) {
+      console.log("Initializing ad schedule:", adSchedule);
+      setAdSchedule(adSchedule);
+    }
+  }, [adSchedule, setAdSchedule]);
+
+  // Handler to manually trigger first unplayed ad (for demo)
+  const triggerNextAd = useCallback(() => {
+    const nextAd = adSchedule.find(ad => !ad.played);
+    if (nextAd) {
+      console.log("Triggering ad:", nextAd);
+      startAd(nextAd, currentTime);
+    }
+  }, [adSchedule, startAd, currentTime]);
 
   useEffect(() => {
     if (!videoUrl) {
@@ -1355,6 +1392,18 @@ export function CRTModelViewer({
               )}
             </button>
 
+            {/* Demo Ad Trigger Button - only show if ads are scheduled */}
+            {adSchedule.length > 0 && (
+              <button
+                onClick={triggerNextAd}
+                className="p-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition-colors border border-amber-500/30"
+                title="Play next ad (demo)"
+                disabled={!adSchedule.find(ad => !ad.played)}
+              >
+                <Film className="w-5 h-5 text-amber-400" />
+              </button>
+            )}
+
             <button
               onClick={isCapturing ? toggleCaptureMute : toggleMute}
               className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
@@ -1368,6 +1417,17 @@ export function CRTModelViewer({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Ad Overlay - shown when an ad is playing */}
+      {playbackStatus === 'ad_playing' && currentAd && (
+        <AdOverlay
+          ad={currentAd}
+          totalAds={adSchedule.length}
+          currentAdIndex={adSchedule.findIndex(ad => ad.adId === currentAd.adId)}
+          onComplete={completeAd}
+          onSkip={skipAd}
+        />
       )}
     </div>
   );
