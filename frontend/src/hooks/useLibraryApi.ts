@@ -256,3 +256,42 @@ export async function fetchYoutubeVideoInfo(youtubeUrl: string): Promise<{
     return null
   }
 }
+
+// ==================== AD MATCHING HOOKS ====================
+
+export interface AdScheduleItem {
+  adId: string
+  adUrl: string
+  insertAt: number
+  duration: number
+  matchScore: number
+  matchReason: string
+}
+
+export interface MatchResponse {
+  videoAnalysis: VideoAnalysisResult
+  schedule: AdScheduleItem[]
+}
+
+export function useMatchAdsToVideo() {
+  const { getToken } = useAuth()
+
+  return useMutation({
+    mutationFn: async (request: {
+      youtubeUrl: string
+      adIds: string[]
+      maxAds?: number
+    }) => {
+      const token = await getToken()
+      if (!token) throw new Error('Not authenticated')
+
+      return fetchWithAuth('/api/protected/match', token, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      }) as Promise<MatchResponse>
+    },
+  })
+}

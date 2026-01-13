@@ -14,8 +14,8 @@ import {
   getYoutubeThumbnailUrl,
   isValidYoutubeUrl,
 } from "@/stores/library";
-import { fetchYoutubeVideoInfo, useAnalyzeVideo, type VideoAnalysisResult } from "@/hooks/useLibraryApi";
-import { Play, Youtube, FileVideo, AlertCircle, Loader2, Check, Sparkles, Clock, TrendingUp } from "lucide-react";
+import { fetchYoutubeVideoInfo, useAnalyzeVideo, useMatchAdsToVideo, type VideoAnalysisResult, type MatchResponse } from "@/hooks/useLibraryApi";
+import { Play, Youtube, FileVideo, AlertCircle, Loader2, Check, Sparkles, Clock, TrendingUp, Target, Zap } from "lucide-react";
 
 export function WatchNowCard() {
   const navigate = useNavigate();
@@ -36,10 +36,12 @@ export function WatchNowCard() {
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [videoAnalysis, setVideoAnalysis] = useState<VideoAnalysisResult | null>(null);
+  const [matchResponse, setMatchResponse] = useState<MatchResponse | null>(null);
 
   const videoId = extractYoutubeVideoId(youtubeUrl);
   const isValidUrl = isValidYoutubeUrl(youtubeUrl);
   const analyzeVideoMutation = useAnalyzeVideo();
+  const matchAdsMutation = useMatchAdsToVideo();
 
   // Fetch video info when URL changes
   useEffect(() => {
@@ -94,6 +96,25 @@ export function WatchNowCard() {
       setVideoAnalysis(result);
     } catch (error) {
       console.error("Analysis failed:", error);
+    }
+  };
+
+  const handleMatchAds = async () => {
+    if (!isValidUrl || selectedAdIds.length === 0) return;
+
+    try {
+      const result = await matchAdsMutation.mutateAsync({
+        youtubeUrl,
+        adIds: selectedAdIds,
+        maxAds: 3,
+      });
+      setMatchResponse(result);
+      // Also update video analysis if not already set
+      if (!videoAnalysis) {
+        setVideoAnalysis(result.videoAnalysis);
+      }
+    } catch (error) {
+      console.error("Matching failed:", error);
     }
   };
 
@@ -230,30 +251,51 @@ export function WatchNowCard() {
           <>
             <Separator />
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Label className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-primary" />
-                  AI Video Analysis
+                  AI Analysis & Matching
                 </Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAnalyzeVideo}
-                  disabled={analyzeVideoMutation.isPending}
-                  className="h-8"
-                >
-                  {analyzeVideoMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3 h-3 mr-2" />
-                      Analyze
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAnalyzeVideo}
+                    disabled={analyzeVideoMutation.isPending}
+                    className="h-8"
+                  >
+                    {analyzeVideoMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 mr-2" />
+                        Analyze
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleMatchAds}
+                    disabled={matchAdsMutation.isPending || selectedAdIds.length === 0}
+                    className="h-8"
+                  >
+                    {matchAdsMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                        Matching...
+                      </>
+                    ) : (
+                      <>
+                        <Target className="w-3 h-3 mr-2" />
+                        Match Ads
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {analyzeVideoMutation.isError && (
@@ -261,6 +303,15 @@ export function WatchNowCard() {
                   <p className="text-xs text-destructive flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
                     Analysis failed. Please try again.
+                  </p>
+                </div>
+              )}
+
+              {matchAdsMutation.isError && (
+                <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
+                  <p className="text-xs text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Matching failed. Please try again.
                   </p>
                 </div>
               )}
@@ -316,6 +367,54 @@ export function WatchNowCard() {
                       </ScrollArea>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Match Results */}
+              {matchResponse && matchResponse.schedule.length > 0 && (
+                <div className="space-y-2 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">
+                      Matched Ad Schedule ({matchResponse.schedule.length} ads)
+                    </p>
+                  </div>
+                  <ScrollArea className="h-[150px]">
+                    <div className="space-y-2">
+                      {matchResponse.schedule.map((item, idx) => (
+                        <div key={idx} className="p-2.5 rounded-lg bg-background border space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default" className="text-xs shrink-0">
+                                #{idx + 1}
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs shrink-0">
+                                <Clock className="w-3 h-3 mr-1" />
+                                {formatDuration(item.insertAt)}
+                              </Badge>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-xs shrink-0"
+                              style={{
+                                backgroundColor: `rgba(var(--primary-rgb, 0, 0, 0), ${item.matchScore * 0.15})`,
+                              }}
+                            >
+                              {Math.round(item.matchScore * 100)}% match
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {item.matchReason}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>Duration: {item.duration}s</span>
+                            <span>•</span>
+                            <span className="truncate">Ad ID: {item.adId}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 </div>
               )}
             </div>
