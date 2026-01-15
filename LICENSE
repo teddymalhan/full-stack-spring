@@ -1,46 +1,24 @@
-Copyright (c) 2026 Atulya Malhan
-All Rights Reserved.
+This is free and unencumbered software released into the public domain.
 
-NOTICE: THIS SOFTWARE IS NOT OPEN SOURCE.
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
 
-This repository and all files, code, documentation, comments, structure,
-design, algorithms, and associated materials (collectively, the "Software")
-are proprietary and confidential intellectual property of the copyright
-holder and are provided strictly for viewing and inspection purposes only.
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
 
-NO LICENSE GRANT.
-No license, right, or permission is granted to any person or entity to use,
-copy, reproduce, modify, adapt, translate, merge, publish, distribute,
-sublicense, sell, assign, transfer, create derivative works from, publicly
-display, publicly perform, benchmark, reverse engineer, decompile,
-disassemble, or otherwise exploit the Software, in whole or in part, for any
-purpose whatsoever, whether commercial or non-commercial.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 
-NO IMPLIED RIGHTS.
-No rights are granted by implication, estoppel, exhaustion, waiver, or
-otherwise. Access to the Software does not constitute permission to use it.
-
-PROHIBITED USES.
-Without limiting the foregoing, the following are strictly prohibited:
-- Copying or reimplementing any portion of the Software
-- Creating derivative works or substantially similar works
-- Using the Software as a reference for implementation
-- Using the Software for training, fine-tuning, or evaluating machine
-  learning or artificial intelligence models
-- Using the Software internally, in production, or for research
-- Redistributing the Software in any form
-
-OWNERSHIP.
-All right, title, and interest in and to the Software remain exclusively with
-the copyright holder.
-
-ENFORCEMENT.
-Any unauthorized use, reproduction, or distribution of the Software
-constitutes copyright infringement and may result in civil liability,
-injunctive relief, statutory damages, and recovery of legal fees to the
-maximum extent permitted by law.
-
-GOVERNING LAW.
-This notice and any dispute arising from or relating to the Software shall be
-governed by the laws of the Province of British Columbia and the federal laws
-of Canada applicable therein.
+For more information, please refer to <https://unlicense.org>
